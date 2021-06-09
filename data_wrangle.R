@@ -3,6 +3,7 @@ library(dplyr)
 library(tidyr)
 library(stringr)
 library(usmap)
+library(tidycensus)
 # ----
 library(choroplethr)
 library(choroplethrMaps)
@@ -11,23 +12,24 @@ data(continental_us_states)
 data(county.map)
 # -----
 
+# -------------- AGGREGATED LWCF (not long by year) ---------------
 
 #reading in the files I downloaded 
-one.1 <- vroom("State LWCF by County (1) copy.csv")
-one.2 <- vroom("State LWCF by County (1) copy 2.csv")
-one.3 <- vroom("State LWCF by County (1).csv")
-two <- vroom("State LWCF by County (2).csv")
-three <- vroom("State LWCF by County (3).csv")
-four <- vroom("State LWCF by County (4).csv")
-five <- vroom("State LWCF by County (5).csv")
-six <- vroom("State LWCF by County (6).csv")
+one.1 <- vroom("Datasets/raw_data/State LWCF by County (1) copy.csv")
+one.2 <- vroom("Datasets/raw_data/State LWCF by County (1) copy 2.csv")
+one.3 <- vroom("Datasets/raw_data/State LWCF by County (1).csv")
+two <- vroom("Datasets/raw_data/State LWCF by County (2).csv")
+three <- vroom("Datasets/raw_data/State LWCF by County (3).csv")
+four <- vroom("Datasets/raw_data/State LWCF by County (4).csv")
+five <- vroom("Datasets/raw_data/State LWCF by County (5).csv")
+six <- vroom("Datasets/raw_data/State LWCF by County (6).csv")
 
 myCounty <- bind_rows(one.1, one.2, one.3, two, three, four, five, six) %>%
   distinct() 
 
 rm(one.1, one.2, one.3, two, three, four, five, six)
 
-vroom_write(myCounty, "creel_lwcf_tws.csv")
+vroom_write(myCounty, "Datasets/clean_data/creel_lwcf_tws.csv")
 
 # Getting LWCF data ready for maps ------------
 myCounty.map <- myCounty %>%
@@ -42,7 +44,6 @@ county.map <- county.map %>%
 # Merging so LWCF is mapable
 myCounty.map <- left_join(myCounty.map, county.map, by = c("state.fips" = "STATE", "Name" = "NAME")) %>%
   filter(!is.na(region))
-
 
 
 # Total projects ---------------
@@ -67,50 +68,15 @@ county_choropleth(myCounty.map,
                   title = "LWCF: Total LWCF Spending") 
 
 
-# LWCF TWS data from Margaret -------------
-# 45,506
-myLWCF <- vroom("LWCF_features_from TWS.csv")
+# -------------- DISAGGREGATED LWCF (long by project) ---------------
+# provided by margaret 
+myLWCF <- vroom("Datasets/clean_data/LWCF_features_from TWS.csv")
 
 
-
-# Census stuff 
-census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
-# readRenviron("~/.Renviron")
-# Sys.getenv("CENSUS_API_KEY")
-
-# Decennial variables 
-v10.dec <- load_variables(2010, dataset = "sf1", cache = TRUE)
-
-# Variables from decennial census 
-# P001001: population 
-# H002002: Urban
-# H002005: rural 
-# P003001: total race
-# P003002: white alone
-# P003003: black
-# P003004: American Indian and Alaska Native alone
-# P003005: Asian alone
-# P003006: Native Hawaiian and Other Pacific Islander alone
-# P003007: Some Other Race alone
-# P003008: Two or More Races
-# P004001: Total Hispanic or Latino 
-# P004003: Hispanic or Latino
-
-v5.acs <- load_variables(2010, dataset = "acs5", cache = TRUE)
-
-# Variables from american community survey
-# B06011_001: Median income in the past 12 months
-# HAVEN'T FOUND POVERTY STATUS VARIABLE
-
-
-dec10 <- get_decennial(geography = "county", 
-              variables = "P013001", 
-              year = 2010)
-
-
+# -------------- IPUMS HISTORIC CENSUS DATA ---------------
 
 # IPUMS Dataset
-ipums <- vroom("nhgis0003_csv/nhgis0003_ts_nominal_county.csv")
+ipums <- vroom("Datasets/raw_data/nhgis0003_csv/nhgis0003_ts_nominal_county.csv")
 ipums_labs <-ipums[1,] #Getting descriptions
 
 ipums <- ipums[-1,] # deleting descriptions from data
@@ -154,8 +120,43 @@ ipums_thin <- ipums %>%
   rename(people_pov = AX6AA) %>%
   rename(inc_below_pov = CL6AA)
   
+vroom_write(ipums_thin, "Datasets/clean_data/ipums_decennial.csv")
 
 
+# -------------- 2010 census (may not need) ---------------
+# Census stuff 
+census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
+readRenviron("~/.Renviron")
+Sys.getenv("CENSUS_API_KEY")
+
+# Decennial variables 
+v10.dec <- load_variables(2010, dataset = "sf1", cache = TRUE)
+
+# Variables from decennial census 
+# P001001: population 
+# H002002: Urban
+# H002005: rural 
+# P003001: total race
+# P003002: white alone
+# P003003: black
+# P003004: American Indian and Alaska Native alone
+# P003005: Asian alone
+# P003006: Native Hawaiian and Other Pacific Islander alone
+# P003007: Some Other Race alone
+# P003008: Two or More Races
+# P004001: Total Hispanic or Latino 
+# P004003: Hispanic or Latino
+
+v5.acs <- load_variables(2010, dataset = "acs5", cache = TRUE)
+
+# Variables from american community survey
+# B06011_001: Median income in the past 12 months
+# HAVEN'T FOUND POVERTY STATUS VARIABLE
+
+
+dec10 <- get_decennial(geography = "county", 
+                       variables = "P013001", 
+                       year = 2010)
 
 
 
