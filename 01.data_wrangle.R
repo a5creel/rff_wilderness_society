@@ -1,20 +1,18 @@
+# Andie Creel / June 9th, 2021 / LWCF project for RFF
+# Purpose of Script: Taking raw data sets and making them workable 
+
+# ----------------
+
 library(vroom)
 library(dplyr)
 library(tidyr)
 library(stringr)
 library(usmap)
 library(tidycensus)
-# ----
-library(choroplethr)
-library(choroplethrMaps)
-library(usdata)
-data(continental_us_states)
-data(county.map)
-# -----
 
 # -------------- AGGREGATED LWCF (not long by year) ---------------
 
-#reading in the files I downloaded 
+#reading in the files I downloaded from TWS website
 one.1 <- vroom("Datasets/raw_data/State LWCF by County (1) copy.csv")
 one.2 <- vroom("Datasets/raw_data/State LWCF by County (1) copy 2.csv")
 one.3 <- vroom("Datasets/raw_data/State LWCF by County (1).csv")
@@ -31,46 +29,9 @@ rm(one.1, one.2, one.3, two, three, four, five, six)
 
 vroom_write(myCounty, "Datasets/clean_data/creel_lwcf_tws.csv")
 
-# Getting LWCF data ready for maps ------------
-myCounty.map <- myCounty %>%
-  mutate(Name = str_to_title(Name)) %>%
-  mutate(state.fips = fips(state = State))
-
-# Getting map counties ready to merge in
-county.map <- county.map %>%
-  dplyr::select(STATE, NAME, region) %>%
-  distinct()
-
-# Merging so LWCF is mapable
-myCounty.map <- left_join(myCounty.map, county.map, by = c("state.fips" = "STATE", "Name" = "NAME")) %>%
-  filter(!is.na(region))
-
-
-# Total projects ---------------
-# Choosing which variable to map
-myCounty.map <- myCounty.map %>%
-  mutate(value = `Total Projects`)
-county_choropleth(myCounty.map,
-                 title = "LWCF: Total Projects per County") 
-
-# Per Capital Spending ---------------
-# Choosing which variable to map
-myCounty.map <- myCounty.map %>%
-  mutate(value = `Per Capita LWCF Spending`)
-county_choropleth(myCounty.map,
-                  title = "LWCF: Per Capita LWCF Spending") 
-
-# Total Spending ---------------
-# Choosing which variable to map
-myCounty.map <- myCounty.map %>%
-  mutate(value = `Total LWCF Dollars`)
-county_choropleth(myCounty.map,
-                  title = "LWCF: Total LWCF Spending") 
-
-
 # -------------- DISAGGREGATED LWCF (long by project) ---------------
 # provided by margaret 
-myLWCF <- vroom("Datasets/clean_data/LWCF_features_from TWS.csv")
+# myLWCF <- vroom("Datasets/clean_data/LWCF_features_from TWS.csv")
 
 
 # -------------- IPUMS HISTORIC CENSUS DATA ---------------
@@ -107,7 +68,7 @@ ipums_thin <- ipums %>%
   mutate(year = str_sub(variable, -4)) %>% #extracting year from variable name and making new variable
   mutate(variable = str_sub(variable, 1,-5)) %>% #trimming year off variable name
   pivot_wider(id_cols = c(FIPS, year), names_from = variable, values_from = value) %>% # pivoting wider now that we have a year column
-  rename(population = AV0AA) %>%
+  rename(population = AV0AA) %>% #renaming variables
   rename(urban = A57AA) %>%
   rename(rural = A57AD) %>%
   rename(white = B18AA) %>%
@@ -118,7 +79,28 @@ ipums_thin <- ipums %>%
   rename(hispanic = A35AA) %>%
   rename(med_income_house = B79AA) %>%
   rename(people_pov = AX6AA) %>%
-  rename(inc_below_pov = CL6AA)
+  rename(inc_below_pov = CL6AA) %>%
+  dplyr::select(-people_pov) %>% #dropping bc it's almost the same as total pop
+  mutate(population = as.numeric(population)) %>% #getting variable as numbers 
+  mutate(urban = as.numeric(urban)) %>%
+  mutate(rural = as.numeric(rural)) %>%
+  mutate(white = as.numeric(white)) %>%
+  mutate(black = as.numeric(black)) %>%
+  mutate(native = as.numeric(native)) %>%
+  mutate(asian = as.numeric(asian)) %>%
+  mutate(two_race = as.numeric(two_race)) %>%
+  mutate(hispanic = as.numeric(hispanic)) %>%
+  mutate(med_income_house = as.numeric(med_income_house)) %>%
+  mutate(inc_below_pov = as.numeric(inc_below_pov)) %>%
+  mutate(urban_pct = urban / population) %>% #calculating percent of county of certain demographics
+  mutate(rural_pct = rural / population) %>%
+  mutate(white_pct = white / population) %>%
+  mutate(black_pct = black / population) %>%
+  mutate(native_pct = native / population) %>%
+  mutate(asian_pct = asian / population) %>%
+  mutate(two_race_pct = two_race / population) %>%
+  mutate(hispanic_pct = hispanic / population) %>%
+  mutate(inc_below_pov_pct = inc_below_pov / population)
   
 vroom_write(ipums_thin, "Datasets/clean_data/ipums_decennial.csv")
 
@@ -126,8 +108,8 @@ vroom_write(ipums_thin, "Datasets/clean_data/ipums_decennial.csv")
 # -------------- 2010 census (may not need) ---------------
 # Census stuff 
 census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
-readRenviron("~/.Renviron")
-Sys.getenv("CENSUS_API_KEY")
+# readRenviron("~/.Renviron")
+# Sys.getenv("CENSUS_API_KEY")
 
 # Decennial variables 
 v10.dec <- load_variables(2010, dataset = "sf1", cache = TRUE)
