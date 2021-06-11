@@ -1,0 +1,297 @@
+---
+title: "Exploratory Regressions"
+author: "Andie Creel"
+date: "6/11/2021"
+output: 
+  pdf_document:
+    extra_dependencies: ["float"]
+
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/regressions/exploratory_regressions.pdf')) })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+
+
+library(vroom)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(usmap)
+library(tidycensus)
+library(ggplot2)
+library(fixest)
+library(kableExtra)
+library("wesanderson")
+options(scipen=99999)
+
+myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_decennial.csv")
+
+```
+
+# What's the data look like
+
+```{r, echo= FALSE, fig.width=3, fig.height=2, warning=FALSE}
+# distribution of amount
+ggplot(myWorking, aes(x=amount)) + 
+  geom_histogram(binwidth=100000) +
+  theme_minimal() +
+  ggtitle("Count of projects' award size")
+
+# distribution of log amount
+ggplot(myWorking, aes(x=log(amount))) + 
+  geom_histogram(binwidth=.1) +
+  theme_minimal()+
+  ggtitle("Count of LOG of projects' award size")
+
+# 
+ggplot(myWorking, aes(x=fiscal_year)) + 
+  geom_histogram(binwidth=1) +
+  theme_minimal()+
+  ggtitle("Count of awards by year") +
+  scale_x_continuous(breaks=seq(1965,2020,10))
+
+
+
+```
+
+
+## Types of LWCF projects
+
+Types of LWCF projects 
+
+* A: Land Acquisition
+* D: Development 
+* R: redevelopment 
+* C: Combination
+* P: ????
+
+```{r, echo= FALSE, fig.width=3.5, fig.height=2.5, warning=FALSE}
+
+# distribution of  amount
+ggplot(myWorking, aes(x=amount, fill=type, color = type)) + 
+  geom_histogram(binwidth=10000) +
+  theme_minimal()+
+  ggtitle("Count of projects' award size") 
+
+# # truncated distribution of  amount
+# ggplot(myWorking, aes(x=amount, fill=type, color = type)) + 
+#   geom_histogram(binwidth=10000) +
+#   theme_minimal()+
+#   ggtitle("Count of projects' award size: truncated") +
+#   xlim(0,500000)
+
+
+# distribution of log amount
+ggplot(myWorking, aes(x=log(amount), fill=type, color = type)) + 
+  geom_histogram(binwidth=.1) +
+  theme_minimal()+
+  ggtitle("Count of LOG of projects' award size")
+
+# 
+ggplot(myWorking, aes(x=fiscal_year, fill=type, color = type)) + 
+  geom_histogram(binwidth=1) +
+  theme_minimal()+
+  ggtitle("Count of awards by year") +
+  scale_x_continuous(breaks=seq(1965,2020,10))
+
+```
+
+# Regressions
+
+## Outcome of interest: log of size of individual grant awards
+
+### Socioeconomic 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+myWorking <- myWorking %>%
+  mutate(type = as.factor(type))
+
+#park type control
+type <- feols(data = myWorking, log(amount) ~ type + population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking, log(amount) ~ inc_below_pov_pct + type + population| state_fips )
+med_inc <- feols(data = myWorking, log(amount) ~ med_income_house + type + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+```
+
+The percentage of the county that is below the poverty line has a large, significant, negative effect on the size of the grant awarded to that county. Possible explanation: the need to have matching funds for state and local programs, so poorer communities raise less for matching? 
+
+
+### Race
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking, log(amount) ~ white_pct + type + population| state_fips )
+black <- feols(data = myWorking, log(amount) ~ black_pct + type + population| state_fips )
+native <- feols(data = myWorking, log(amount) ~ native_pct + type + population| state_fips )
+hispanic <- feols(data = myWorking, log(amount) ~ hispanic_pct + type + population| state_fips )
+asian <- feols(data = myWorking, log(amount) ~ asian_pct + type + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# resids <- residuals(one)
+```
+
+
+The percentage of the county that is black has a large, significant, **positive** effect on the size of the grant awarded to that county. The percent of the county that is white a significant, **negative** effect on size of grant awarded in that county. Other races and ethnicities are not precisely estimated. Possible explanation: the need to have matching funds for state and local programs, effective community organizing (test the effect size post civil rights movement)? 
+
+
+## Before and after 1980
+
+
+
+```{r,  echo=FALSE, message=FALSE}
+myWorking_pre80 <- myWorking %>%
+  filter(fiscal_year <= 1980)
+
+myWorking_post80 <- myWorking %>%
+  filter(fiscal_year > 1980)
+
+
+
+# income -----------
+
+#park type control
+type <- feols(data = myWorking_pre80, log(amount) ~ type + population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_pre80, log(amount) ~ inc_below_pov_pct + type + population| state_fips )
+med_inc <- feols(data = myWorking_pre80, log(amount) ~ med_income_house + type + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income: pre 1980") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+#park type control
+type <- feols(data = myWorking_post80, log(amount) ~ type + population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_post80, log(amount) ~ inc_below_pov_pct + type + population| state_fips )
+med_inc <- feols(data = myWorking_post80, log(amount) ~ med_income_house + type + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income: post 80") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+
+
+
+# race --------------
+
+white <- feols(data = myWorking_pre80, log(amount) ~ white_pct + type + population| state_fips )
+black <- feols(data = myWorking_pre80, log(amount) ~ black_pct + type + population| state_fips )
+native <- feols(data = myWorking_pre80, log(amount) ~ native_pct + type + population| state_fips )
+hispanic <- feols(data = myWorking_pre80, log(amount) ~ hispanic_pct + type + population| state_fips )
+asian <- feols(data = myWorking_pre80, log(amount) ~ asian_pct + type + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race: pre 80") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+
+white <- feols(data = myWorking_post80, log(amount) ~ white_pct + type + population| state_fips )
+black <- feols(data = myWorking_post80, log(amount) ~ black_pct + type + population| state_fips )
+native <- feols(data = myWorking_post80, log(amount) ~ native_pct + type + population| state_fips )
+hispanic <- feols(data = myWorking_post80, log(amount) ~ hispanic_pct + type + population| state_fips )
+asian <- feols(data = myWorking_post80, log(amount) ~ asian_pct + type + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct", 
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race: post 80") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+
+```
+
+* There don't seem to be major differences in the effect of poverty before and after 1980. 
+
+* The effect of an addition percent of the community being white (or black) doesn't change that much 
+
+* The effect for an additional pct of the county being asian is noisy but may be worth trying to pull apart
+
+* The effect for an additianal pct of the county being hispanic is precesly estimated (and large and postive) after 1980 but not prior
+
+
+
+
+**Next step -- see if these trends show up with a different outcome variable: the number of projects a county gets (aggregate to every year, every 5 years), total amount of funding a county gets (every year, every five years).
+
+
+```{r scrap, eval=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+# myWorking <- myWorking %>%
+#   mutate(type = as.character(type)) %>%
+#   mutate(type = str_sub(type, 1, 1))
+
+# myWorking_A <- myWorking %>%
+#   dplyr::filter(type == "A")
+# 
+# myWorking_D <- myWorking %>%
+#   dplyr::filter(type == "D")
+# 
+# myWorking_R <- myWorking %>%
+#   dplyr::filter(type == "R")
+# 
+# myWorking_C <- myWorking %>%
+#   dplyr::filter(type == "C")
+
+# myWorking_P <- myWorking %>%
+#   dplyr::filter(type == "P")
+
+```

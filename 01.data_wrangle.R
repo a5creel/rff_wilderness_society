@@ -3,13 +3,14 @@
 
 # ----------------
 
-library(vroom)
 library(plyr)
 library(dplyr)
 library(tidyr)
 library(stringr)
 library(usmap)
 library(tidycensus)
+library(vroom)
+library(choroplethrMaps) # to pull in the county data (FIPS codes etc)
 
 # -------------- AGGREGATED LWCF (not long by year) ---------------
 
@@ -138,55 +139,165 @@ myLWCF <- myLWCF %>%
   dplyr::mutate(merge_year = as.character(merge_year))
   
 
-#ATTN: MISSING 5,421 DEMOGRAPHICS FOR PROJECTS
+#ATTN: MISSING 5,421 DEMOGRAPHICS FOR PROJECTS, 979 are for merge year 2020
 myWorking <- left_join(myLWCF, ipums_thin, by = c("county_fips" = "FIPS", "merge_year" = "year"))
 
 
+# -------------- 2015 American community survey ---------------
+
+# Pulling in for merge year 2020 because I don't have the census info in the IPUMS dataset for any year greater than 2014
+
+# Census stuff
+census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
+# readRenviron("~/.Renviron")
+# Sys.getenv("CENSUS_API_KEY")
+
+# Decennial -------
+
+# Decennial variables: NOTE: already got from IPUMS
+# v10.dec <- load_variables(2010, dataset = "sf1", cache = TRUE)
+
+# Variables from decennial census
+# P001001: population
+# H002002: Urban
+# H002005: rural
+# P003001: total race
+# P003002: white alone
+# P003003: black
+# P003004: American Indian and Alaska Native alone
+# P003005: Asian alone
+# P003006: Native Hawaiian and Other Pacific Islander alone
+# P003007: Some Other Race alone
+# P003008: Two or More Races
+# P004001: Total Hispanic or Latino
+# P004003: Hispanic or Latino
+
+
+# ACS -------
+
+v5.acs <- load_variables(2015, dataset = "acs5", cache = TRUE)
+
+# Variables from American community survey
+
+# B01003_001: population
+# ATTN: DIDN'T FIND URBAN 
+# ATTN: DIDN'T FIND RURAL
+# B02001_001: total race
+# B02001_002: white alone
+# B02001_003: black
+# B02001_004: American Indian and Alaska Native alone
+# B02001_005: Asian alone
+# B02001_006: Native Hawaiian and Other Pacific Islander alone
+# B02001_007: Some Other Race alone
+# B02001_008: Two or More Races
+# B03001_001: Total Hispanic or Latino
+# B03001_012: Hispanic or Latino
+
+# B06011_001: Median income in the past 12 months
+
+# CONSTRUCTION OF POVERTY LEVEL IN 2015
+# C17002_001 -- TOTAL: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
+# C17002_002 -- Under .50: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
+# C17002_003 -- .50 to .99: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
+
+#Getting count of people of different races/ethnicities
+population <- "B01003_001"
+total_race <- "B02001_001" #population on census block
+white <- "B02001_002" #Estimate!!Total!!White alone
+black <- 	"B02001_003" #	Estimate!!Total!!Black or African American alone
+native <- "B02001_004" #	Estimate!!Total!!American Indian and Alaska Native alone
+asian <- "B02001_005" #Estimate!!Total!!Asian alone
+islander <- "B02001_006" #Estimate!!Total!!Native Hawaiian and Other Pacific Islander alone
+other <- "B02001_007" #Estimate!!Total!!Some other race alone
+two_race <- "B02001_008"
+total_hispanic <- "B03001_001"
+hispanic <- "B03002_012"
+med_income <- "B06011_001"
+pov_total <- "C17002_001"
+pov_under_.5 <- "C17002_002"
+pov_.5_.99 <- "C17002_003"
+
+#creating list
+vars <- list(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99)
+rm(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99)
+
+#pulling data from census
+ACS <- get_acs(geography = "county", variables = vars, geometry = FALSE, cache_table = TRUE)
+
+#pivot data wide
+myACS <- ACS %>%
+  select(-moe) %>%
+  pivot_wider(names_from = 'variable', values_from = c('estimate')) %>%
+  distinct() %>%
+  mutate(year = 2015) %>%
+  rename(population = B01003_001) %>%
+  mutate(urban = NA) %>%
+  mutate(rural = NA) %>%
+  select(-B02001_001) %>% #dropping total_race bc it is the same as total pop
+  rename(white = B02001_002) %>%
+  rename(black = B02001_003) %>%
+  rename(native = B02001_004) %>%
+  rename(asian = B02001_005) %>%
+  select(-B02001_006) %>% # dropping islander bc I don't have it for earlier years
+  select(-B02001_007) %>%# dropping other bc I don't have it for earlier years
+  rename(two_race = B02001_008) %>%
+  select(-B03001_001) %>% #dropping total_hispanic bc it is the same as total pop
+  rename(hispanic = B03002_012) %>%
+  rename(med_income_house = B06011_001) %>%
+  select(-C17002_001) %>% #dropping pov_total bc it's almost the same as total pop
+  rename(pov_under_.5 = C17002_002) %>%
+  rename(pov_.5_.99 = C17002_003) %>%
+  mutate(inc_below_pov = pov_under_.5 + pov_.5_.99) %>%
+  select(-pov_.5_.99, -pov_under_.5, -NAME) %>%
+  plyr::mutate(population = as.numeric(population)) %>% #getting variable as numbers 
+  dplyr::mutate(urban = as.numeric(urban)) %>%
+  dplyr::mutate(rural = as.numeric(rural)) %>%
+  dplyr::mutate(white = as.numeric(white)) %>%
+  dplyr::mutate(black = as.numeric(black)) %>%
+  dplyr::mutate(native = as.numeric(native)) %>%
+  dplyr::mutate(asian = as.numeric(asian)) %>%
+  dplyr::mutate(two_race = as.numeric(two_race)) %>%
+  dplyr::mutate(hispanic = as.numeric(hispanic)) %>%
+  dplyr::mutate(med_income_house = as.numeric(med_income_house)) %>%
+  dplyr::mutate(inc_below_pov = as.numeric(inc_below_pov)) %>%
+  dplyr::mutate(urban_pct = urban / population) %>% #calculating percent of county of certain demographics
+  dplyr::mutate(rural_pct = rural / population) %>%
+  dplyr::mutate(white_pct = white / population) %>%
+  dplyr::mutate(black_pct = black / population) %>%
+  dplyr::mutate(native_pct = native / population) %>%
+  dplyr::mutate(asian_pct = asian / population) %>%
+  dplyr::mutate(two_race_pct = two_race / population) %>%
+  dplyr::mutate(hispanic_pct = hispanic / population) %>%
+  dplyr::mutate(inc_below_pov_pct = inc_below_pov / population)
+
+
+# -------------- Merging ACS with LWCF for years 2015 and above ---------------
+
+not_all_na <- function(x) any(!is.na(x)) # function to check a whole collumn to see if it's NA
+
+myWorking_20 <- myWorking %>%
+  filter(merge_year == 2020) %>%
+  mutate(merge_year = 2015) %>%
+  select(where(not_all_na)) # function to check a whole collumn to see if it's NA 
+
+myWorking_20 <- left_join(myWorking_20, myACS, by = c("county_fips" = "GEOID", "merge_year" = "year"))
+
+
+# -------------- recombining with all years ---------------
+
+myWorking_sub_20 <- myWorking %>%
+  filter(merge_year != 2020) %>%
+  mutate(merge_year = as.numeric(merge_year))
+
+myWorking <- bind_rows(myWorking_sub_20, myWorking_20)
+
+
+# Saving to clean data set
 vroom_write(myWorking, "Datasets/clean_data/lwcf_tws_projects_decennial.csv")
 
 
-test2 <- left_join(myLWCF, ipums_thin, by = c("county_fips" = "FIPS", "merge_year" = "year")) %>%
-  filter(merge_year == 1990 | merge_year == 2000 | merge_year == 2010| merge_year == 2020)
 
 
-hist(as.numeric(myWorking$fiscal_year))
-
-
-# # -------------- 2010 census (may not need) ---------------
-# # Census stuff 
-# census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
-# # readRenviron("~/.Renviron")
-# # Sys.getenv("CENSUS_API_KEY")
-# 
-# # Decennial variables 
-# v10.dec <- load_variables(2010, dataset = "sf1", cache = TRUE)
-# 
-# # Variables from decennial census 
-# # P001001: population 
-# # H002002: Urban
-# # H002005: rural 
-# # P003001: total race
-# # P003002: white alone
-# # P003003: black
-# # P003004: American Indian and Alaska Native alone
-# # P003005: Asian alone
-# # P003006: Native Hawaiian and Other Pacific Islander alone
-# # P003007: Some Other Race alone
-# # P003008: Two or More Races
-# # P004001: Total Hispanic or Latino 
-# # P004003: Hispanic or Latino
-# 
-# v5.acs <- load_variables(2010, dataset = "acs5", cache = TRUE)
-# 
-# # Variables from american community survey
-# # B06011_001: Median income in the past 12 months
-# # HAVEN'T FOUND POVERTY STATUS VARIABLE
-# 
-# 
-# dec10 <- get_decennial(geography = "county", 
-#                        variables = "P013001", 
-#                        year = 2010)
-# 
 
 
 
