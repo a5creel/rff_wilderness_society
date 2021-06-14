@@ -25,6 +25,8 @@ library(fixest)
 library(kableExtra)
 library("wesanderson")
 options(scipen=99999)
+library(gtools)
+library(forcats)
 
 myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_decennial.csv")
 
@@ -63,9 +65,9 @@ Types of LWCF projects
 
 * A: Land Acquisition
 * D: Development 
-* R: redevelopment 
+* R: Redevelopment 
 * C: Combination
-* P: ????
+* P: Planning
 
 ```{r, echo= FALSE, fig.width=3.5, fig.height=2.5, warning=FALSE}
 
@@ -269,29 +271,691 @@ etable(white,
 * The effect for an additianal pct of the county being hispanic is precesly estimated (and large and postive) after 1980 but not prior
 
 
+# Grant Type
+
+* A: Land Acquisition
+* D: Development 
+* R: Redevelopment 
+* C: Combination
+* P: Planning -- The planning grants don't have a county (the county field is 'planning'). They appear to be awarded at the state level, for the most part. 
 
 
-**Next step -- see if these trends show up with a different outcome variable: the number of projects a county gets (aggregate to every year, every 5 years), total amount of funding a county gets (every year, every five years).
+```{r scrap, echo=FALSE, message=FALSE}
 
+myWorking <- myWorking %>%
+  mutate(type = as.character(type)) %>%
+  mutate(type = str_sub(type, 1, 1))
 
-```{r scrap, eval=FALSE, warning=FALSE, message=FALSE, include=FALSE}
-# myWorking <- myWorking %>%
-#   mutate(type = as.character(type)) %>%
-#   mutate(type = str_sub(type, 1, 1))
+myWorking_A <- myWorking %>%
+  dplyr::filter(type == "A")
 
-# myWorking_A <- myWorking %>%
-#   dplyr::filter(type == "A")
-# 
-# myWorking_D <- myWorking %>%
-#   dplyr::filter(type == "D")
-# 
-# myWorking_R <- myWorking %>%
-#   dplyr::filter(type == "R")
-# 
-# myWorking_C <- myWorking %>%
-#   dplyr::filter(type == "C")
+myWorking_D <- myWorking %>%
+  dplyr::filter(type == "D")
 
-# myWorking_P <- myWorking %>%
-#   dplyr::filter(type == "P")
+myWorking_R <- myWorking %>%
+  dplyr::filter(type == "R")
+
+myWorking_C <- myWorking %>%
+  dplyr::filter(type == "C")
+
+myWorking_P <- myWorking %>%
+  dplyr::filter(type == "P")
 
 ```
+
+## Socio-economic
+
+### Land Acquisition 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+myWorking_A <- myWorking_A %>%
+  mutate(type = as.factor(type))
+
+#park type control
+type <- feols(data = myWorking_A, log(amount) ~ population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_A, log(amount) ~ inc_below_pov_pct  + population| state_fips )
+med_inc <- feols(data = myWorking_A, log(amount) ~ med_income_house  + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+### Development 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+myWorking_D <- myWorking_D %>%
+  mutate(type = as.factor(type))
+
+#park type control
+type <- feols(data = myWorking_D, log(amount) ~ population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_D, log(amount) ~ inc_below_pov_pct  + population| state_fips )
+med_inc <- feols(data = myWorking_D, log(amount) ~ med_income_house  + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+
+```
+
+### Redevlopment
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+myWorking_R <- myWorking_R %>%
+  mutate(type = as.factor(type))
+
+#park type control
+type <- feols(data = myWorking_R, log(amount) ~ population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_R, log(amount) ~ inc_below_pov_pct  + population| state_fips )
+med_inc <- feols(data = myWorking_R, log(amount) ~ med_income_house  + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+```
+
+### Combination 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+myWorking_C <- myWorking_C %>%
+  mutate(type = as.factor(type))
+
+#park type control
+type <- feols(data = myWorking_C, log(amount) ~ population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_C, log(amount) ~ inc_below_pov_pct  + population| state_fips )
+med_inc <- feols(data = myWorking_C, log(amount) ~ med_income_house  + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+
+## Race
+
+### Land Acquisition 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_A, log(amount) ~ white_pct  + population| state_fips )
+black <- feols(data = myWorking_A, log(amount) ~ black_pct  + population| state_fips )
+native <- feols(data = myWorking_A, log(amount) ~ native_pct  + population| state_fips )
+hispanic <- feols(data = myWorking_A, log(amount) ~ hispanic_pct  + population| state_fips )
+asian <- feols(data = myWorking_A, log(amount) ~ asian_pct  + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# resids <- residuals(one)
+```
+
+### Development 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_D, log(amount) ~ white_pct  + population| state_fips )
+black <- feols(data = myWorking_D, log(amount) ~ black_pct  + population| state_fips )
+native <- feols(data = myWorking_D, log(amount) ~ native_pct  + population| state_fips )
+hispanic <- feols(data = myWorking_D, log(amount) ~ hispanic_pct  + population| state_fips )
+asian <- feols(data = myWorking_D, log(amount) ~ asian_pct  + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+
+### Redevelopment
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_R, log(amount) ~ white_pct  + population| state_fips )
+black <- feols(data = myWorking_R, log(amount) ~ black_pct  + population| state_fips )
+native <- feols(data = myWorking_R, log(amount) ~ native_pct  + population| state_fips )
+hispanic <- feols(data = myWorking_R, log(amount) ~ hispanic_pct  + population| state_fips )
+asian <- feols(data = myWorking_R, log(amount) ~ asian_pct  + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+```
+
+
+### Combination 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_C, log(amount) ~ white_pct  + population| state_fips )
+black <- feols(data = myWorking_C, log(amount) ~ black_pct  + population| state_fips )
+native <- feols(data = myWorking_C, log(amount) ~ native_pct  + population| state_fips )
+hispanic <- feols(data = myWorking_C, log(amount) ~ hispanic_pct  + population| state_fips )
+asian <- feols(data = myWorking_C, log(amount) ~ asian_pct  + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+```
+
+
+# Quartiles for Demographics 
+
+```{r,  echo=FALSE, message=FALSE}
+# creating 5 factor variables for racial groups and poverty 
+
+myWorking <- myWorking %>%
+  mutate(black_quant = quantcut(black_pct, q = 5, na.rm=TRUE)) %>%
+  mutate(white_quant = quantcut(white_pct, q = 5, na.rm=TRUE)) %>%
+  mutate(asian_quant = quantcut(asian_pct, q = 5, na.rm=TRUE)) %>%
+  mutate(native_quant = quantcut(native_pct, q = 5, na.rm=TRUE)) %>%
+  mutate(hispanic_quant = quantcut(hispanic_pct, q = 5, na.rm=TRUE)) %>%
+  mutate(poverty_quant = quantcut(inc_below_pov_pct, q = 5, na.rm=TRUE)) %>%
+  mutate(black_quant = fct_recode(black_quant, 
+           one = levels(black_quant)[1], 
+           two = levels(black_quant)[2], 
+           three = levels(black_quant)[3], 
+           four = levels(black_quant)[4], 
+           five = levels(black_quant)[5])) %>%
+  mutate(white_quant = fct_recode(white_quant, 
+           one = levels(white_quant)[1], 
+           two = levels(white_quant)[2], 
+           three = levels(white_quant)[3], 
+           four = levels(white_quant)[4], 
+           five = levels(white_quant)[5])) %>%  
+  mutate(asian_quant = fct_recode(asian_quant, 
+           one = levels(asian_quant)[1], 
+           two = levels(asian_quant)[2], 
+           three = levels(asian_quant)[3], 
+           four = levels(asian_quant)[4], 
+           five = levels(asian_quant)[5])) %>%  
+ mutate(native_quant = fct_recode(native_quant, 
+           one = levels(native_quant)[1], 
+           two = levels(native_quant)[2], 
+           three = levels(native_quant)[3], 
+           four = levels(native_quant)[4], 
+           five = levels(native_quant)[5])) %>%  
+  mutate(hispanic_quant = fct_recode(hispanic_quant, 
+           one = levels(hispanic_quant)[1], 
+           two = levels(hispanic_quant)[2], 
+           three = levels(hispanic_quant)[3], 
+           four = levels(hispanic_quant)[4], 
+           five = levels(hispanic_quant)[5])) %>%
+  mutate(poverty_quant = fct_recode(poverty_quant, 
+           one = levels(poverty_quant)[1], 
+           two = levels(poverty_quant)[2], 
+           three = levels(poverty_quant)[3], 
+           four = levels(poverty_quant)[4], 
+           five = levels(poverty_quant)[5]))
+
+
+```
+
+
+
+```{r,  echo=FALSE, message=FALSE}
+#regressions with quants
+
+quant_reg <- feols(data = myWorking, amount ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips  )
+
+quant_reg_yearFE <- feols(data = myWorking, amount ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips + fiscal_year )
+
+quant_reg_log <- feols(data = myWorking, log(amount) ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips  )
+
+quant_reg_yearFE_log <- feols(data = myWorking, log(amount) ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips + fiscal_year )
+
+
+
+# race
+etable(quant_reg,
+       quant_reg_yearFE,
+       quant_reg_log,
+       quant_reg_yearFE_log,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+
+```
+`
+
+# New Outcome Variable 
+**Next step -- see if these trends show up with a different outcome variable: the number of projects a county gets (aggregate to every year, every 5 years), total amount of funding a county gets (every year, every five years).
+
+## Annual quantity of grants a county receives 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Number of projects a county gets per year 
+myWorking_quantity <- myWorking %>%
+  filter(!is.na(county_fips)) %>%
+  group_by(fiscal_year, county_fips) %>%
+  mutate(annual_quantity_grants = length(amount)) %>%
+  mutate(annual_amount = sum(amount)) %>%
+  select(-amount) %>%
+  distinct()
+
+
+# graphs --------------------
+
+# Annual quanitty of grants 
+ggplot(myWorking_quantity, aes(x=annual_quantity_grants)) + 
+  geom_histogram() +
+  theme_minimal() +
+  ggtitle("Count of annual projects a county recieves")
+
+ggplot(myWorking_quantity, aes(x=log(annual_quantity_grants))) + 
+  geom_histogram() +
+  theme_minimal()+
+  ggtitle("Count of LOG of annual projects a county recieves")
+
+ggplot(myWorking_quantity, aes(x=fiscal_year)) + 
+  geom_histogram(binwidth=1) +
+  theme_minimal()+
+  ggtitle("Count of annual projects a county recieves by year") +
+  scale_x_continuous(breaks=seq(1965,2020,10))
+
+
+# Annual amount of money a county receives 
+ggplot(myWorking_quantity, aes(x=annual_amount)) + 
+  geom_histogram() +
+  theme_minimal() +
+  ggtitle("Count of annual amount of funding a county recieves")
+
+ggplot(myWorking_quantity, aes(x=log(annual_amount))) + 
+  geom_histogram() +
+  theme_minimal()+
+  ggtitle("Count of LOG of annual amount of funding a county recieves")
+
+
+
+
+
+
+``` 
+
+
+### Socioeconomic 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+myWorking_quantity <- myWorking_quantity %>%
+  mutate(type = as.factor(type))
+
+#park type control
+type <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ type + population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ inc_below_pov_pct + type + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ med_income_house + type + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+```
+
+
+
+### Race
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ white_pct + type + population| state_fips )
+black <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ black_pct + type + population| state_fips )
+native <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ native_pct + type + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ hispanic_pct + type + population| state_fips )
+asian <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ asian_pct + type + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# resids <- residuals(one)
+```
+
+
+## Annual amount of funding a county recieves
+
+
+### Socioeconomic 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+#park type control
+type <- feols(data = myWorking_quantity, log(annual_amount) ~ type + population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_quantity, log(annual_amount) ~ inc_below_pov_pct + type + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, log(annual_amount) ~ med_income_house + type + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+```
+
+
+
+### Race
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + type + population| state_fips )
+black <- feols(data = myWorking_quantity, log(annual_amount) ~ black_pct + type + population| state_fips )
+native <- feols(data = myWorking_quantity, log(annual_amount) ~ native_pct + type + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, log(annual_amount) ~ hispanic_pct + type + population| state_fips )
+asian <- feols(data = myWorking_quantity, log(annual_amount) ~ asian_pct + type + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# resids <- residuals(one)
+```
+
+
+## Not logged
+
+### Annual quantity of grants a county receives 
+
+#### Socioeconomic 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+myWorking_quantity <- myWorking_quantity %>%
+  mutate(type = as.factor(type))
+
+#park type control
+type <- feols(data = myWorking_quantity, annual_quantity_grants ~ type + population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_quantity, annual_quantity_grants ~ inc_below_pov_pct + type + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, annual_quantity_grants ~ med_income_house + type + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+```
+
+
+
+#### Race
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_quantity, annual_quantity_grants ~ white_pct + type + population| state_fips )
+black <- feols(data = myWorking_quantity, annual_quantity_grants ~ black_pct + type + population| state_fips )
+native <- feols(data = myWorking_quantity, annual_quantity_grants ~ native_pct + type + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, annual_quantity_grants ~ hispanic_pct + type + population| state_fips )
+asian <- feols(data = myWorking_quantity, annual_quantity_grants ~ asian_pct + type + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# resids <- residuals(one)
+```
+
+
+### Annual amount of funding a county recieves
+
+
+#### Socioeconomic 
+
+```{r,  echo=FALSE, message=FALSE}
+
+# Initial regressions -------------------
+
+#park type control
+type <- feols(data = myWorking_quantity, annual_amount ~ type + population| state_fips )
+
+#economic 
+poverty <- feols(data = myWorking_quantity, annual_amount ~ inc_below_pov_pct + type + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, annual_amount ~ med_income_house + type + population| state_fips )
+
+#economic 
+etable(type,
+       poverty,
+       med_inc,
+       order = c("_pct", "med_"),
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+```
+
+
+
+#### Race
+
+```{r,  echo=FALSE, message=FALSE}
+
+# race
+white <- feols(data = myWorking_quantity, annual_amount ~ white_pct + type + population| state_fips )
+black <- feols(data = myWorking_quantity, annual_amount ~ black_pct + type + population| state_fips )
+native <- feols(data = myWorking_quantity, annual_amount ~ native_pct + type + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, annual_amount ~ hispanic_pct + type + population| state_fips )
+asian <- feols(data = myWorking_quantity, annual_amount ~ asian_pct + type + population| state_fips )
+
+
+
+# race
+etable(white,
+       black,
+       asian,
+       native,
+       hispanic,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+# Quantiles and new outcome variables 
+
+## Annual Quantity 
+
+```{r,  echo=FALSE, message=FALSE}
+#regressions with quants
+
+quant_reg <- feols(data = myWorking_quantity, annual_quantity_grants ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips  )
+
+quant_reg_yearFE <- feols(data = myWorking_quantity, annual_quantity_grants ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips + fiscal_year )
+
+quant_reg_log <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips  )
+
+quant_reg_yearFE_log <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips + fiscal_year )
+
+
+
+# race
+etable(quant_reg,
+       quant_reg_yearFE,
+       quant_reg_log,
+       quant_reg_yearFE_log,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+
+```
+
+## Annual Amount 
+
+```{r,  echo=FALSE, message=FALSE}
+#regressions with quants
+
+quant_reg <- feols(data = myWorking_quantity, annual_amount ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips  )
+
+quant_reg_yearFE <- feols(data = myWorking_quantity, annual_amount ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips + fiscal_year )
+
+quant_reg_log <- feols(data = myWorking_quantity, log(annual_amount) ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips  )
+
+quant_reg_yearFE_log <- feols(data = myWorking_quantity, log(annual_amount) ~ white_quant + black_quant + asian_quant + native_quant + hispanic_quant +poverty_quant  + population| state_fips + fiscal_year )
+
+
+
+# race
+etable(quant_reg,
+       quant_reg_yearFE,
+       quant_reg_log,
+       quant_reg_yearFE_log,
+       order = "_pct",
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+
+```
+
+
+
+Notes to self on next step: may want to make even more race factors (decile). And then make a 0/1 indicator on if a county is that race or not if it is in the top decile. This is a tough analysis to run at the county level (kathrine sims runs this as the tract level). 
+
+

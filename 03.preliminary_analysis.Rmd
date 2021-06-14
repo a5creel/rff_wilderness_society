@@ -1,0 +1,31 @@
+---
+title: "Preliminary Analysis"
+author: "Andie Creel"
+date: "6/14/2021"
+output: 
+  pdf_document:
+    extra_dependencies: ["float"]
+
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/regressions/preliminary_analysis.pdf')) })
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+
+
+library(vroom)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(usmap)
+library(tidycensus)
+library(ggplot2)
+library(fixest)
+library(kableExtra)
+library("wesanderson")
+options(scipen=99999)
+
+myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_decennial.csv")
+
+```
