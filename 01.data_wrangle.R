@@ -1,4 +1,4 @@
-# Andie Creel / June 9th, 2021 / LWCF project for RFF
+# Andie Creel / June 16th, 2021 / LWCF project for RFF
 # Purpose of Script: Taking raw data sets and making them workable 
 
 # ----------------
@@ -137,10 +137,36 @@ myLWCF <- myLWCF %>%
   dplyr::mutate(fiscal_year = if_else(fiscal_year == 1965, fiscal_year + 1, fiscal_year)) %>%
   dplyr::mutate(merge_year = round_any(fiscal_year, 10)) %>%
   dplyr::mutate(merge_year = as.character(merge_year))
-  
+
+
+# ERS urban rural code 
+
+myERS <- vroom("Datasets/clean_data/ERS_urban_rural.csv")
+
+myERS <- myERS %>%
+  dplyr::select(FIPS, Population_2010, RUCC_2013, Description)
+
+myLWCF <- left_join(myLWCF, myERS, by = c("county_fips" = "FIPS"))
+
 
 #ATTN: MISSING 5,421 DEMOGRAPHICS FOR PROJECTS, 979 are for merge year 2020
 myWorking <- left_join(myLWCF, ipums_thin, by = c("county_fips" = "FIPS", "merge_year" = "year"))
+
+
+
+# -------- getting aggregate county data ready ----------#
+#prep for merge
+myCounty <- myCounty %>%
+  dplyr::mutate(Name = str_to_title(Name)) %>%
+  dplyr::mutate(state_fips = fips(state = State))
+
+
+#merge to get county fips (ATTN: not able to identify 4,490 projects with a FIPS code ... )
+myCounty <- dplyr::left_join(myCounty, county.map, by = c("Name" = "NAME", "state_fips" = "STATE")) %>%
+  dplyr::rename(county_fips = region)
+
+
+myCounty <- left_join(myCounty, myERS, by = c("county_fips" = "FIPS"))
 
 
 # -------------- 2015 American community survey ---------------
@@ -192,6 +218,8 @@ v5.acs <- load_variables(2015, dataset = "acs5", cache = TRUE)
 # B02001_008: Two or More Races
 # B03001_001: Total Hispanic or Latino
 # B03001_012: Hispanic or Latino
+# B15003_018: GED
+# B15003_017: Highschool diploma
 
 # B06011_001: Median income in the past 12 months
 
@@ -216,10 +244,14 @@ med_income <- "B06011_001"
 pov_total <- "C17002_001"
 pov_under_.5 <- "C17002_002"
 pov_.5_.99 <- "C17002_003"
+GED <- "B15003_018"
+highschool <- "B15003_017"
+bachelors <- "B15003_022"
+total_school <- "B15003_001"
 
 #creating list
-vars <- list(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99)
-rm(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99)
+vars <- list(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99, GED, highschool, bachelors, total_school)
+rm(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99, GED, highschool, bachelors, total_school)
 
 #pulling data from census
 ACS <- get_acs(geography = "county", variables = vars, geometry = FALSE, cache_table = TRUE)
@@ -229,27 +261,31 @@ myACS <- ACS %>%
   select(-moe) %>%
   pivot_wider(names_from = 'variable', values_from = c('estimate')) %>%
   distinct() %>%
-  mutate(year = 2015) %>%
-  rename(population = B01003_001) %>%
-  mutate(urban = NA) %>%
-  mutate(rural = NA) %>%
-  select(-B02001_001) %>% #dropping total_race bc it is the same as total pop
-  rename(white = B02001_002) %>%
-  rename(black = B02001_003) %>%
-  rename(native = B02001_004) %>%
-  rename(asian = B02001_005) %>%
-  select(-B02001_006) %>% # dropping islander bc I don't have it for earlier years
-  select(-B02001_007) %>%# dropping other bc I don't have it for earlier years
-  rename(two_race = B02001_008) %>%
-  select(-B03001_001) %>% #dropping total_hispanic bc it is the same as total pop
-  rename(hispanic = B03002_012) %>%
-  rename(med_income_house = B06011_001) %>%
-  select(-C17002_001) %>% #dropping pov_total bc it's almost the same as total pop
-  rename(pov_under_.5 = C17002_002) %>%
-  rename(pov_.5_.99 = C17002_003) %>%
-  mutate(inc_below_pov = pov_under_.5 + pov_.5_.99) %>%
-  select(-pov_.5_.99, -pov_under_.5, -NAME) %>%
-  plyr::mutate(population = as.numeric(population)) %>% #getting variable as numbers 
+  dplyr::mutate(year = 2015) %>%
+  dplyr::rename(population = B01003_001) %>%
+  dplyr::mutate(urban = NA) %>%
+  dplyr::mutate(rural = NA) %>%
+  dplyr::select(-B02001_001) %>% #dropping total_race bc it is the same as total pop
+  dplyr::rename(white = B02001_002) %>%
+  dplyr::rename(black = B02001_003) %>%
+  dplyr::rename(native = B02001_004) %>%
+  dplyr::rename(asian = B02001_005) %>%
+  dplyr::select(-B02001_006) %>% # dropping islander bc I don't have it for earlier years
+  dplyr::select(-B02001_007) %>%# dropping other bc I don't have it for earlier years
+  dplyr::rename(two_race = B02001_008) %>%
+  dplyr::select(-B03001_001) %>% #dropping total_hispanic bc it is the same as total pop
+  dplyr::rename(hispanic = B03002_012) %>%
+  dplyr::rename(med_income_house = B06011_001) %>%
+  dplyr::select(-C17002_001) %>% #dropping pov_total bc it's almost the same as total pop
+  dplyr::rename(pov_under_.5 = C17002_002) %>%
+  dplyr::rename(pov_.5_.99 = C17002_003) %>%
+  dplyr::rename(GED = B15003_018) %>%
+  dplyr::rename(highschool = B15003_017) %>%
+  dplyr::rename(bachelors = B15003_022) %>%
+  dplyr::rename(total_school = B15003_001) %>%
+  dplyr::mutate(inc_below_pov = pov_under_.5 + pov_.5_.99) %>%
+  dplyr::select(-pov_.5_.99, -pov_under_.5, -NAME) %>%
+  dplyr::mutate(population = as.numeric(population)) %>% #getting variable as numbers 
   dplyr::mutate(urban = as.numeric(urban)) %>%
   dplyr::mutate(rural = as.numeric(rural)) %>%
   dplyr::mutate(white = as.numeric(white)) %>%
@@ -260,6 +296,10 @@ myACS <- ACS %>%
   dplyr::mutate(hispanic = as.numeric(hispanic)) %>%
   dplyr::mutate(med_income_house = as.numeric(med_income_house)) %>%
   dplyr::mutate(inc_below_pov = as.numeric(inc_below_pov)) %>%
+  dplyr::mutate(highschool = as.numeric(highschool)) %>%
+  dplyr::mutate(GED = as.numeric(GED)) %>%
+  dplyr::mutate(bachelors = as.numeric(bachelors)) %>%
+  dplyr::mutate(total_school = as.numeric(total_school)) %>%
   dplyr::mutate(urban_pct = urban / population) %>% #calculating percent of county of certain demographics
   dplyr::mutate(rural_pct = rural / population) %>%
   dplyr::mutate(white_pct = white / population) %>%
@@ -268,22 +308,27 @@ myACS <- ACS %>%
   dplyr::mutate(asian_pct = asian / population) %>%
   dplyr::mutate(two_race_pct = two_race / population) %>%
   dplyr::mutate(hispanic_pct = hispanic / population) %>%
-  dplyr::mutate(inc_below_pov_pct = inc_below_pov / population)
+  dplyr::mutate(inc_below_pov_pct = inc_below_pov / population) %>%
+  dplyr::mutate(GED_pct = GED / population) %>%
+  dplyr::mutate(highschool_pct = highschool / population) %>%
+  dplyr::mutate(noCollegeDegree_pct = (total_school - bachelors) / total_school)
+    
+    
 
 
-# -------------- Merging ACS with LWCF for years 2015 and above ---------------
+# -------------- Merging ACS with LWCF and IPUMS for years 2015 and above ---------------
 
-not_all_na <- function(x) any(!is.na(x)) # function to check a whole collumn to see if it's NA
+not_all_na <- function(x) any(!is.na(x)) # function to check a whole column to see if it's NA
 
 myWorking_20 <- myWorking %>%
   filter(merge_year == 2020) %>%
   mutate(merge_year = 2015) %>%
-  select(where(not_all_na)) # function to check a whole collumn to see if it's NA 
+  select(where(not_all_na)) # function to check a whole column to see if it's NA 
 
 myWorking_20 <- left_join(myWorking_20, myACS, by = c("county_fips" = "GEOID", "merge_year" = "year"))
 
 
-# -------------- recombining with all years ---------------
+# recombining with all years 
 
 myWorking_sub_20 <- myWorking %>%
   filter(merge_year != 2020) %>%
@@ -293,11 +338,20 @@ myWorking <- bind_rows(myWorking_sub_20, myWorking_20)
 
 
 # Saving to clean data set
-vroom_write(myWorking, "Datasets/clean_data/lwcf_tws_projects_decennial.csv")
+vroom_write(myWorking, "Datasets/clean_data/lwcf_tws_projects_IPUMS&ACS.csv")
 
 
 
+# ------- combining LWCF with ACS only ------- #
 
+myWorking_acsOnly <- left_join(myLWCF, myACS, by = c("county_fips" = "GEOID"))
+vroom_write(myWorking_acsOnly, "Datasets/clean_data/lwcf_tws_projects_onlyACS.csv")
+
+
+# ------- combining aggregate LWCF with ACS only ------- #
+
+myCounty <- left_join(myCounty, myACS, by = c("county_fips" = "GEOID"))
+vroom_write(myCounty, "Datasets/clean_data/aggregate_lwcf_tws_projects_onlyACS.csv")
 
 
 

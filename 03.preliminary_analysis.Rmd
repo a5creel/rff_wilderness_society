@@ -1,9 +1,10 @@
 ---
 title: "Preliminary Analysis"
 author: "Andie Creel"
-date: "6/14/2021"
+date: "6/15/2021"
 output: 
   pdf_document:
+    number_sections: true
     extra_dependencies: ["float"]
 
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/regressions/preliminary_analysis.pdf')) })
@@ -23,9 +24,1037 @@ library(tidycensus)
 library(ggplot2)
 library(fixest)
 library(kableExtra)
+library(gtools)
+library(forcats)
 library("wesanderson")
 options(scipen=99999)
+library(janitor)
 
-myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_decennial.csv")
+myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_onlyACS.csv")
 
 ```
+
+
+```{r,  echo=FALSE, message=FALSE}
+# additional data cleaning ------------
+
+# Removing counties whose FIPSs code I didn't identify 
+myWorking <- myWorking %>%
+  filter(!is.na(county_fips)) %>%
+  distinct()
+
+#removing grants we don't know the size of
+myWorking <- myWorking %>%
+  filter(!is.na(amount))
+
+# Adding metro, nonmetro and rural variable
+myUrbanKey <- myWorking %>%
+  dplyr::select(RUCC_2013, Description) %>%
+  distinct()
+
+myWorking <- myWorking %>%
+  mutate(metro = if_else(RUCC_2013 == 1 | RUCC_2013 == 2 | RUCC_2013 == 3, 1, 0)) %>%
+  mutate(nonmetro = if_else(RUCC_2013 == 4 | RUCC_2013 == 5 | RUCC_2013 == 6, 1, 0)) %>%
+  mutate(rural = if_else(RUCC_2013 == 7 | RUCC_2013 == 8 | RUCC_2013 == 9, 1, 0))
+
+
+# getting ready for deciles
+myWorking <- myWorking %>%
+  mutate(type = as.factor(type)) %>%
+  mutate(black_dec = quantcut(black_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(white_dec = quantcut(white_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(asian_dec = quantcut(asian_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(native_dec = quantcut(native_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(hispanic_dec = quantcut(hispanic_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(poverty_dec = quantcut(inc_below_pov_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(black_dec = fct_recode(black_dec, 
+           ten = levels(black_dec)[10])) %>%
+  mutate(white_dec = fct_recode(white_dec, 
+           ten = levels(white_dec)[10])) %>%  
+  mutate(asian_dec = fct_recode(asian_dec, 
+           ten = levels(asian_dec)[10])) %>%  
+ mutate(native_dec = fct_recode(native_dec, 
+           ten = levels(native_dec)[10])) %>%  
+  mutate(hispanic_dec = fct_recode(hispanic_dec, 
+           ten = levels(hispanic_dec)[10])) %>%
+  mutate(poverty_dec = fct_recode(poverty_dec, 
+           ten = levels(poverty_dec)[10]))
+
+# making 0/1 for counties in the highest decile for different races and ethnicities 
+myWorking <- myWorking %>%
+  mutate(white_county = if_else(white_dec == "ten", 1, 0)) %>%
+  mutate(black_county = if_else(black_dec == "ten", 1, 0)) %>%
+  mutate(asian_county = if_else(asian_dec == "ten", 1, 0)) %>%
+  mutate(native_county = if_else(native_dec == "ten", 1, 0)) %>%
+  mutate(hispanic_county = if_else(hispanic_dec == "ten", 1, 0)) 
+
+
+# Removing useless variables 
+myWorking <- myWorking %>%
+  dplyr::select(-c(objectid, county, grantidelement, grantelementtitle, grantsponsor, congdistrict, relate))
+
+# other outcome variable -------------------------------------
+# annual quantity of grants
+
+ myCounts <- myWorking %>% 
+  group_by(fiscal_year, county_fips) %>%
+  tally() %>%
+  dplyr::rename(annual_quantity = n)
+ 
+ myWorking_quantity <- left_join(myWorking, myCounts , by = c("fiscal_year", "county_fips")) %>%
+   dplyr::select(-type, -amount) %>%
+   distinct()
+
+# annual amount of funding
+mySum <- myWorking %>%
+   group_by(fiscal_year, county_fips) %>%
+    dplyr::summarise(annual_amount = sum(amount))
+
+  
+myWorking_quantity <- left_join(myWorking_quantity, mySum , by = c("fiscal_year", "county_fips"))
+
+
+```
+
+
+```{r,  echo=FALSE, message=FALSE}
+myWorking %>%
+  tabyl(type) %>%
+  kbl() %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+```
+
+
+
+# Regressing each Race/Ethnicity Seperately 
+
+## Perctage Regressions 
+
+### Amount of Funding per Reward
+
+```{r,  echo=FALSE, message=FALSE}
+# White
+one <- feols(data = myWorking, log(amount) ~ white_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ white_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ white_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_pct + med_income_house + noCollegeDegree_pct + metro + nonmetro + rural + type | state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "White Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# Black
+
+one <- feols(data = myWorking, log(amount) ~ black_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ black_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ black_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ black_pct + med_income_house + noCollegeDegree_pct + metro + nonmetro + rural + type | state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Black Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position"))  
+
+# asian
+
+one <- feols(data = myWorking, log(amount) ~ asian_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ asian_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ asian_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ asian_pct + med_income_house + noCollegeDegree_pct + metro + nonmetro + rural + type | state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Asian Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# native
+
+one <- feols(data = myWorking, log(amount) ~ native_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ native_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ native_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ native_pct + med_income_house + noCollegeDegree_pct + metro + nonmetro + rural + type | state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Native Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# hispanic
+
+one <- feols(data = myWorking, log(amount) ~ hispanic_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ hispanic_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ hispanic_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ hispanic_pct + med_income_house + noCollegeDegree_pct + metro + nonmetro + rural + type | state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Hispanic Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty
+
+one <- feols(data = myWorking, log(amount) ~ inc_below_pov_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ inc_below_pov_pct + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ inc_below_pov_pct  + noCollegeDegree_pct + metro + nonmetro + rural + type | state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income Below Poverty Level Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+
+<!-- * poverty and no college degree are highly correlated  -->
+
+
+### Annual Quantity of Grants
+
+```{r,  echo=FALSE, message=FALSE}
+
+
+# White
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct  + population | state_fips + fiscal_year )
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + med_income_house  + population| state_fips + fiscal_year )
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year )
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "White Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# Black
+
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ black_pct  + population | state_fips + fiscal_year )
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ black_pct + med_income_house  + population| state_fips + fiscal_year )
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ black_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Black Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# asian
+
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ asian_pct  + population | state_fips + fiscal_year )
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ asian_pct + med_income_house  + population| state_fips + fiscal_year )
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ asian_pct + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year )
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ asian_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Asian Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# native
+
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ native_pct  + population | state_fips + fiscal_year )
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ native_pct + med_income_house  + population| state_fips + fiscal_year )
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ native_pct + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year )
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ native_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Native Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# hispanic
+
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ hispanic_pct  + population | state_fips + fiscal_year )
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ hispanic_pct + med_income_house  + population| state_fips + fiscal_year )
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ hispanic_pct + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year )
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ hispanic_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Hispanic Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position"))  
+
+
+# poverty
+
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ inc_below_pov_pct  + population | state_fips + fiscal_year )
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ inc_below_pov_pct + noCollegeDegree_pct  + population| state_fips + fiscal_year )
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ inc_below_pov_pct  + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Under Poverty Level Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+
+### Annual Amount of Grants Funding 
+
+```{r,  echo=FALSE, message=FALSE}
+
+
+# White
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct  + population | state_fips )
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + med_income_house  + population| state_fips )
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + med_income_house + noCollegeDegree_pct  + population| state_fips )
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "White Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# Black
+
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ black_pct  + population | state_fips )
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ black_pct + med_income_house  + population| state_fips )
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ black_pct + med_income_house + noCollegeDegree_pct  + population| state_fips )
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ black_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Black Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# asian
+
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ asian_pct  + population | state_fips )
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ asian_pct + med_income_house  + population| state_fips )
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ asian_pct + med_income_house + noCollegeDegree_pct  + population| state_fips )
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ asian_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Asian Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position"))  
+
+# native
+
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ native_pct  + population | state_fips )
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ native_pct + med_income_house  + population| state_fips )
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ native_pct + med_income_house + noCollegeDegree_pct  + population| state_fips )
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ native_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Native Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# hispanic
+
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ hispanic_pct  + population | state_fips )
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ hispanic_pct + med_income_house  + population| state_fips )
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ hispanic_pct + med_income_house + noCollegeDegree_pct  + population| state_fips )
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ hispanic_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Hispanic Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty
+
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ inc_below_pov_pct  + population | state_fips )
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ inc_below_pov_pct + noCollegeDegree_pct  + population| state_fips )
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ inc_below_pov_pct + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Under Poverty Level Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+
+## Decile Regressions
+```{r,  echo=FALSE, message=FALSE}
+# White
+one <- feols(data = myWorking, log(amount) ~ white_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ white_county + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ white_county + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_county + med_income_house + noCollegeDegree_pct+ type  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "White Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# Black
+
+one <- feols(data = myWorking, log(amount) ~ black_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ black_county + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ black_county + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ black_county + med_income_house + noCollegeDegree_pct+ type  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Black Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# asian
+
+one <- feols(data = myWorking, log(amount) ~ asian_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ asian_county + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ asian_county + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ asian_county + med_income_house + noCollegeDegree_pct+ type  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Asian Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# native
+
+one <- feols(data = myWorking, log(amount) ~ native_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ native_county + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ native_county + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ native_county + med_income_house + noCollegeDegree_pct+ type  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Native Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+# hispanic
+
+one <- feols(data = myWorking, log(amount) ~ hispanic_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ hispanic_county + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ hispanic_county + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ hispanic_county + med_income_house + noCollegeDegree_pct+ type  + metro + nonmetro + rural| state_fips + fiscal_year )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Hispanic Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+
+Trend I'm starting to see: college degree and income are a strong indicator of a county getting less (on most metrics I've checked so far)
+
+# Regressing together 
+
+## Percentage 
+
+### Amount per Individual Award
+
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+* income below poverty level and no college degree is highly correlated 
+
+### Annual Amount
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+
+# Median income 
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+### Annual Quantity 
+
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+
+# Median income 
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Percentage Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+When aggregated annual, non-rural areas are receiving more total funds and a larger quantity of funds
+
+## Decile 
+
+### Amount per Individual Award
+
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+
+
+### Annual Amount
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+
+# Median income 
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+### Annual Quantity 
+
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+
+# Median income 
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct  + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+# Per Capita: aggregated over years
+
+
+```{r,  echo=FALSE, message=FALSE}
+
+myAgg <- vroom("Datasets/clean_data/aggregate_lwcf_tws_projects_onlyACS.csv")
+
+# additional data cleaning ------------
+
+# Removing counties whose FIPSs code I didn't identify 
+myAgg <- myAgg %>%
+  dplyr::filter(!is.na(county_fips)) %>%
+  dplyr::rename(total_amount = `Total LWCF Dollars`) %>%
+  dplyr::rename(total_quantity = `Total Projects`) %>%
+  dplyr::rename(total_amount_per_cap = `Per Capita LWCF Spending`) %>%
+  dplyr::mutate(total_quantity_per_cap = total_quantity/`Population Estimate`)
+
+
+myAgg <- myAgg %>%
+  mutate(metro = if_else(RUCC_2013 == 1 | RUCC_2013 == 2 | RUCC_2013 == 3, 1, 0)) %>%
+  mutate(nonmetro = if_else(RUCC_2013 == 4 | RUCC_2013 == 5 | RUCC_2013 == 6, 1, 0)) %>%
+  mutate(rural = if_else(RUCC_2013 == 7 | RUCC_2013 == 8 | RUCC_2013 == 9, 1, 0))
+
+
+# getting ready for deciles
+myAgg <- myAgg %>%
+  mutate(black_dec = quantcut(black_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(white_dec = quantcut(white_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(asian_dec = quantcut(asian_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(native_dec = quantcut(native_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(hispanic_dec = quantcut(hispanic_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(poverty_dec = quantcut(inc_below_pov_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(black_dec = fct_recode(black_dec, 
+           ten = levels(black_dec)[10])) %>%
+  mutate(white_dec = fct_recode(white_dec, 
+           ten = levels(white_dec)[10])) %>%  
+  mutate(asian_dec = fct_recode(asian_dec, 
+           ten = levels(asian_dec)[10])) %>%  
+ mutate(native_dec = fct_recode(native_dec, 
+           ten = levels(native_dec)[10])) %>%  
+  mutate(hispanic_dec = fct_recode(hispanic_dec, 
+           ten = levels(hispanic_dec)[10])) %>%
+  mutate(poverty_dec = fct_recode(poverty_dec, 
+           ten = levels(poverty_dec)[10]))
+
+# making 0/1 for counties in the highest decile for different races and ethnicities 
+myAgg <- myAgg %>%
+  mutate(white_county = if_else(white_dec == "ten", 1, 0)) %>%
+  mutate(black_county = if_else(black_dec == "ten", 1, 0)) %>%
+  mutate(asian_county = if_else(asian_dec == "ten", 1, 0)) %>%
+  mutate(native_county = if_else(native_dec == "ten", 1, 0)) %>%
+  mutate(hispanic_county = if_else(hispanic_dec == "ten", 1, 0)) 
+
+```
+
+## Decile Regressions 
+
+### Aggregate total amount per capita
+
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+# Median income 
+one <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county   | state_fips )
+two <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house  | state_fips )
+three <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  | state_fips )
+four <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county   | state_fips )
+two <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct  | state_fips )
+three <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  | state_fips )
+four <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips )
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+### Aggregate total amount
+```{r,  echo=FALSE, message=FALSE}
+#regressing all races together
+
+# Median income 
+one <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips )
+two <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house  + population| state_fips )
+three <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  + population| state_fips )
+four <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips )
+two <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct  + population| state_fips )
+three <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  + population| state_fips )
+four <- feols(data = myAgg, log(total_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips )
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+my_R <- myWorking %>%
+  dplyr::filter(type == "R ")
+
+
+
+```
+
+
+We get sign flipping when we look at his per capita vs when we control for populaiton as an independent variable. This is done with all years aggregated though. TO-DO: run this dis-aggregated by year
+
+
+# Per Capita: Not aggregated over time (yay)
+
+## Decile
+
+```{r,  echo=FALSE, message=FALSE}
+
+myWorking_perCap <- myWorking %>%
+  dplyr::mutate(amount = amount / population)
+
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + type | state_fips + fiscal_year)
+three <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + type | state_fips + fiscal_year)
+three <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+### no year FE
+
+```{r,  echo=FALSE, message=FALSE}
+
+myWorking_perCap <- myWorking %>%
+  dplyr::mutate(amount = amount / population)
+
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type  | state_fips )
+two <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + type | state_fips )
+three <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct + type | state_fips )
+four <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type  | state_fips )
+two <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + type | state_fips )
+three <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type | state_fips )
+four <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips )
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+## Percentage
+
+```{r,  echo=FALSE, message=FALSE}
+
+
+myWorking_perCap <- myWorking %>%
+  dplyr::mutate(amount = amount / population)
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type | state_fips + fiscal_year)
+three <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + type | state_fips + fiscal_year)
+three <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+### no year FE
+
+```{r,  echo=FALSE, message=FALSE}
+
+myWorking_perCap <- myWorking %>%
+  dplyr::mutate(amount = amount / population)
+
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips )
+two <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type | state_fips )
+three <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type | state_fips )
+four <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips )
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# poverty percentage 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips )
+two <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + type | state_fips )
+three <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type | state_fips )
+four <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips )
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+

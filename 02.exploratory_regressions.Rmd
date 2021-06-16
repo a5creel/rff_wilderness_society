@@ -1,7 +1,7 @@
 ---
 title: "Exploratory Regressions"
 author: "Andie Creel"
-date: "6/11/2021"
+date: "6/15/2021"
 output: 
   pdf_document:
     extra_dependencies: ["float"]
@@ -28,7 +28,15 @@ options(scipen=99999)
 library(gtools)
 library(forcats)
 
-myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_decennial.csv")
+myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_IPUMS&ACS.csv")
+
+# Removing useless variables 
+myWorking <- myWorking %>%
+  dplyr::select(-c(objectid, county, grantidelement, grantelementtitle, grantsponsor, congdistrict, relate, starts_with("urban"), starts_with("rural")))
+
+# Removing counties whose FIPSs code I didn't identify 
+myWorking <- myWorking %>%
+  filter(!is.na(county_fips))
 
 ```
 
@@ -624,7 +632,7 @@ myWorking_quantity <- myWorking %>%
   group_by(fiscal_year, county_fips) %>%
   mutate(annual_quantity_grants = length(amount)) %>%
   mutate(annual_amount = sum(amount)) %>%
-  select(-amount) %>%
+  select(-amount, -type ) %>%
   distinct()
 
 
@@ -673,15 +681,13 @@ ggplot(myWorking_quantity, aes(x=log(annual_amount))) +
 
 # Initial regressions -------------------
 
-myWorking_quantity <- myWorking_quantity %>%
-  mutate(type = as.factor(type))
 
 #park type control
-type <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ type + population| state_fips )
+type <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~  population| state_fips )
 
 #economic 
-poverty <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ inc_below_pov_pct + type + population| state_fips )
-med_inc <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ med_income_house + type + population| state_fips )
+poverty <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ inc_below_pov_pct + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ med_income_house + population| state_fips )
 
 #economic 
 etable(type,
@@ -700,11 +706,11 @@ etable(type,
 ```{r,  echo=FALSE, message=FALSE}
 
 # race
-white <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ white_pct + type + population| state_fips )
-black <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ black_pct + type + population| state_fips )
-native <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ native_pct + type + population| state_fips )
-hispanic <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ hispanic_pct + type + population| state_fips )
-asian <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ asian_pct + type + population| state_fips )
+white <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ white_pct  + population| state_fips )
+black <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ black_pct  + population| state_fips )
+native <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ native_pct  + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ hispanic_pct  + population| state_fips )
+asian <- feols(data = myWorking_quantity, log(annual_quantity_grants) ~ asian_pct + population| state_fips )
 
 
 
@@ -733,11 +739,11 @@ etable(white,
 # Initial regressions -------------------
 
 #park type control
-type <- feols(data = myWorking_quantity, log(annual_amount) ~ type + population| state_fips )
+type <- feols(data = myWorking_quantity, log(annual_amount) ~ population| state_fips )
 
 #economic 
-poverty <- feols(data = myWorking_quantity, log(annual_amount) ~ inc_below_pov_pct + type + population| state_fips )
-med_inc <- feols(data = myWorking_quantity, log(annual_amount) ~ med_income_house + type + population| state_fips )
+poverty <- feols(data = myWorking_quantity, log(annual_amount) ~ inc_below_pov_pct + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, log(annual_amount) ~ med_income_house + population| state_fips )
 
 #economic 
 etable(type,
@@ -756,11 +762,11 @@ etable(type,
 ```{r,  echo=FALSE, message=FALSE}
 
 # race
-white <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + type + population| state_fips )
-black <- feols(data = myWorking_quantity, log(annual_amount) ~ black_pct + type + population| state_fips )
-native <- feols(data = myWorking_quantity, log(annual_amount) ~ native_pct + type + population| state_fips )
-hispanic <- feols(data = myWorking_quantity, log(annual_amount) ~ hispanic_pct + type + population| state_fips )
-asian <- feols(data = myWorking_quantity, log(annual_amount) ~ asian_pct + type + population| state_fips )
+white <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + population| state_fips )
+black <- feols(data = myWorking_quantity, log(annual_amount) ~ black_pct  + population| state_fips )
+native <- feols(data = myWorking_quantity, log(annual_amount) ~ native_pct + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, log(annual_amount) ~ hispanic_pct + population| state_fips )
+asian <- feols(data = myWorking_quantity, log(annual_amount) ~ asian_pct + population| state_fips )
 
 
 
@@ -789,15 +795,12 @@ etable(white,
 
 # Initial regressions -------------------
 
-myWorking_quantity <- myWorking_quantity %>%
-  mutate(type = as.factor(type))
-
 #park type control
-type <- feols(data = myWorking_quantity, annual_quantity_grants ~ type + population| state_fips )
+type <- feols(data = myWorking_quantity, annual_quantity_grants ~ population| state_fips )
 
 #economic 
-poverty <- feols(data = myWorking_quantity, annual_quantity_grants ~ inc_below_pov_pct + type + population| state_fips )
-med_inc <- feols(data = myWorking_quantity, annual_quantity_grants ~ med_income_house + type + population| state_fips )
+poverty <- feols(data = myWorking_quantity, annual_quantity_grants ~ inc_below_pov_pct  + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, annual_quantity_grants ~ med_income_house + population| state_fips )
 
 #economic 
 etable(type,
@@ -816,11 +819,11 @@ etable(type,
 ```{r,  echo=FALSE, message=FALSE}
 
 # race
-white <- feols(data = myWorking_quantity, annual_quantity_grants ~ white_pct + type + population| state_fips )
-black <- feols(data = myWorking_quantity, annual_quantity_grants ~ black_pct + type + population| state_fips )
-native <- feols(data = myWorking_quantity, annual_quantity_grants ~ native_pct + type + population| state_fips )
-hispanic <- feols(data = myWorking_quantity, annual_quantity_grants ~ hispanic_pct + type + population| state_fips )
-asian <- feols(data = myWorking_quantity, annual_quantity_grants ~ asian_pct + type + population| state_fips )
+white <- feols(data = myWorking_quantity, annual_quantity_grants ~ white_pct  + population| state_fips )
+black <- feols(data = myWorking_quantity, annual_quantity_grants ~ black_pct  + population| state_fips )
+native <- feols(data = myWorking_quantity, annual_quantity_grants ~ native_pct  + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, annual_quantity_grants ~ hispanic_pct  + population| state_fips )
+asian <- feols(data = myWorking_quantity, annual_quantity_grants ~ asian_pct  + population| state_fips )
 
 
 
@@ -849,11 +852,11 @@ etable(white,
 # Initial regressions -------------------
 
 #park type control
-type <- feols(data = myWorking_quantity, annual_amount ~ type + population| state_fips )
+type <- feols(data = myWorking_quantity, annual_amount ~  population| state_fips )
 
 #economic 
-poverty <- feols(data = myWorking_quantity, annual_amount ~ inc_below_pov_pct + type + population| state_fips )
-med_inc <- feols(data = myWorking_quantity, annual_amount ~ med_income_house + type + population| state_fips )
+poverty <- feols(data = myWorking_quantity, annual_amount ~ inc_below_pov_pct  + population| state_fips )
+med_inc <- feols(data = myWorking_quantity, annual_amount ~ med_income_house + population| state_fips )
 
 #economic 
 etable(type,
@@ -872,11 +875,11 @@ etable(type,
 ```{r,  echo=FALSE, message=FALSE}
 
 # race
-white <- feols(data = myWorking_quantity, annual_amount ~ white_pct + type + population| state_fips )
-black <- feols(data = myWorking_quantity, annual_amount ~ black_pct + type + population| state_fips )
-native <- feols(data = myWorking_quantity, annual_amount ~ native_pct + type + population| state_fips )
-hispanic <- feols(data = myWorking_quantity, annual_amount ~ hispanic_pct + type + population| state_fips )
-asian <- feols(data = myWorking_quantity, annual_amount ~ asian_pct + type + population| state_fips )
+white <- feols(data = myWorking_quantity, annual_amount ~ white_pct + population| state_fips )
+black <- feols(data = myWorking_quantity, annual_amount ~ black_pct + population| state_fips )
+native <- feols(data = myWorking_quantity, annual_amount ~ native_pct + population| state_fips )
+hispanic <- feols(data = myWorking_quantity, annual_amount ~ hispanic_pct + population| state_fips )
+asian <- feols(data = myWorking_quantity, annual_amount ~ asian_pct + population| state_fips )
 
 
 
