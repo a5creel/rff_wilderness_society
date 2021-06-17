@@ -35,7 +35,7 @@ myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_onlyACS.csv")
 ```
 
 
-```{r,  echo=FALSE, message=FALSE}
+```{r,  echo=FALSE}
 # additional data cleaning ------------
 
 # Removing counties whose FIPSs code I didn't identify 
@@ -43,9 +43,19 @@ myWorking <- myWorking %>%
   filter(!is.na(county_fips)) %>%
   distinct()
 
-#removing grants we don't know the size of
+#removing grants we don't know the size of or that are zero 
 myWorking <- myWorking %>%
-  filter(!is.na(amount))
+  filter(!is.na(amount)) %>%
+  filter(amount != 0)
+
+myPercentiles <- quantile(myWorking$amount, probs = c(0, 0.05, .1, .25, .5, .75, .9, .95, 1))
+
+#dropping parks in the lowest 5% and in the highest 5% (about the 95th percentile)
+
+myWorking <- myWorking %>%
+  filter(amount > myPercentiles["5%"]) %>%
+  filter(amount < myPercentiles["95%"])
+
 
 # Adding metro, nonmetro and rural variable
 myUrbanKey <- myWorking %>%
@@ -254,6 +264,7 @@ etable(one,
 
 one <- feols(data = myWorking_quantity, log(annual_quantity) ~ black_pct  + population | state_fips + fiscal_year )
 two <- feols(data = myWorking_quantity, log(annual_quantity) ~ black_pct + med_income_house  + population| state_fips + fiscal_year )
+three <- feols(data = myWorking_quantity, log(annual_quantity) ~ black_pct + med_income_house + noCollegeDegree_pct  + population| state_fips + fiscal_year )
 four <- feols(data = myWorking_quantity, log(annual_quantity) ~ black_pct + med_income_house + noCollegeDegree_pct  + metro + nonmetro + rural| state_fips + fiscal_year )
 
 etable(one,
@@ -530,6 +541,15 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Percentage Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
+
+
+
+
 
 # poverty percentage 
 one <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type + population | state_fips + fiscal_year)
@@ -544,6 +564,11 @@ etable(one,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Poverty Percentage Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 ```
@@ -569,6 +594,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Percentage Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_quantity, log(annual_amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct  + population | state_fips + fiscal_year)
@@ -583,6 +613,11 @@ etable(one,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Poverty Percentage Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 ```
@@ -607,6 +642,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Percentage Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct  + population | state_fips + fiscal_year)
@@ -622,10 +662,17 @@ etable(one,
   kbl(booktabs = T, caption = "Poverty Percentage Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 ```
 
 When aggregated annual, non-rural areas are receiving more total funds and a larger quantity of funds
+
+** using log(annual quanity) as an outcome variable doesn't seem very valid. **
 
 ## Decile 
 
@@ -648,12 +695,22 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type + population | state_fips + fiscal_year)
 two <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + type + population| state_fips + fiscal_year)
 three <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
 four <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 etable(one,
@@ -688,6 +745,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_quantity, log(annual_amount) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips + fiscal_year)
@@ -702,6 +764,11 @@ etable(one,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 ```
@@ -726,6 +793,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_quantity, log(annual_quantity) ~ white_county + black_county + asian_county + hispanic_county +native_county  + population | state_fips + fiscal_year)
@@ -741,8 +813,16 @@ etable(one,
   kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 ```
+
+** annual quantity does not result in normally distributed errors**
+
 
 # Per Capita: aggregated over years
 
@@ -820,6 +900,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myAgg, log(total_amount_per_cap) ~ white_county + black_county + asian_county + hispanic_county +native_county   | state_fips )
@@ -835,6 +920,11 @@ etable(one,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 ```
@@ -910,6 +1000,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type  | state_fips + fiscal_year)
@@ -925,6 +1020,11 @@ etable(one,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 ```
@@ -953,6 +1053,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_perCap, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type  | state_fips )
@@ -968,6 +1073,11 @@ etable(one,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 ```
@@ -996,6 +1106,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips + fiscal_year)
@@ -1011,6 +1126,11 @@ etable(one,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
 
 
 ```
@@ -1039,6 +1159,11 @@ etable(one,
   kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 # poverty percentage 
 one <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips )
@@ -1055,6 +1180,86 @@ etable(one,
   kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
 
 ```
+
+# Doing this as % of the whole 
+
+```{r,  echo=FALSE, message=FALSE}
+# getting the whole
+
+myWhole <- myWorking %>%
+  dplyr::group_by(fiscal_year) %>%
+  dplyr::summarise(year_total_amount = sum(amount))
+
+myWorking <- left_join(myWorking, myWhole, by = "fiscal_year")
+
+myWorking <- myWorking %>%
+  dplyr::mutate(amount_percent = amount / year_total_amount)
+
+```
+
+
+```{r,  echo=FALSE, message=FALSE}
+
+#regressing all races together
+
+
+# Median income 
+one <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type | state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Median Income Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
+
+# poverty percentage 
+one <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + type | state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + inc_below_pov_pct + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Poverty Decile Regs") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+qqnorm(residuals(one))
+qqnorm(residuals(two))
+qqnorm(residuals(three))
+qqnorm(residuals(four))
+
+
+```
+
+
+
+
+
+
+
+
+
+
 
