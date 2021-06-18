@@ -230,14 +230,7 @@ ggsave(width = 11, height = 8, filename = "Exploratory_Output/scatter/medianInco
 
 
 
-# distribution of grants 
-ggplot(myWorking_dev, aes(x=log(amount))) + geom_histogram(bins=100)
 
-ggplot(myWorking, aes(x=amount_percent)) + geom_histogram(bins=100)
-  
-
-
-quantile(myWorking$amount, probs = c(0, .1, .25, .5, .75, .9, 1))
 
 
 

@@ -32,10 +32,6 @@ library(janitor)
 
 myWorking <- vroom("Datasets/clean_data/lwcf_tws_projects_onlyACS.csv")
 
-```
-
-
-```{r,  echo=FALSE}
 # additional data cleaning ------------
 
 # Removing counties whose FIPSs code I didn't identify 
