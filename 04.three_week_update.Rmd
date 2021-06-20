@@ -10,11 +10,14 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/regressions/three_week_update.pdf')) })
 ---
 
-```{r setup, include=FALSE}
+```{r, include=FALSE}
+#R Markdown stuff
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+options(tinytex.verbose = TRUE)
+```
 
-
+```{r setup, include=FALSE}
 library(vroom)
 library(dplyr)
 library(tidyr)
@@ -73,6 +76,7 @@ myWorking <- myWorking %>%
   mutate(native_dec = quantcut(native_pct, q = 10, na.rm=TRUE)) %>%
   mutate(hispanic_dec = quantcut(hispanic_pct, q = 10, na.rm=TRUE)) %>%
   mutate(poverty_dec = quantcut(inc_below_pov_pct, q = 10, na.rm=TRUE)) %>%
+  mutate(noCollegeDegree_dec = quantcut(noCollegeDegree_pct, q = 10, na.rm=TRUE)) %>%
   mutate(black_dec = fct_recode(black_dec, 
            ten = levels(black_dec)[10])) %>%
   mutate(white_dec = fct_recode(white_dec, 
@@ -84,7 +88,9 @@ myWorking <- myWorking %>%
   mutate(hispanic_dec = fct_recode(hispanic_dec, 
            ten = levels(hispanic_dec)[10])) %>%
   mutate(poverty_dec = fct_recode(poverty_dec, 
-           ten = levels(poverty_dec)[10]))
+           ten = levels(poverty_dec)[10])) %>%
+  mutate(noCollegeDegree_dec = fct_recode(noCollegeDegree_dec, 
+           ten = levels(noCollegeDegree_dec)[10]))
 
 # making 0/1 for counties in the highest decile for different races and ethnicities 
 myWorking <- myWorking %>%
@@ -92,8 +98,8 @@ myWorking <- myWorking %>%
   mutate(black_county = if_else(black_dec == "ten", 1, 0)) %>%
   mutate(asian_county = if_else(asian_dec == "ten", 1, 0)) %>%
   mutate(native_county = if_else(native_dec == "ten", 1, 0)) %>%
-  mutate(hispanic_county = if_else(hispanic_dec == "ten", 1, 0)) 
-
+  mutate(hispanic_county = if_else(hispanic_dec == "ten", 1, 0)) %>%
+  mutate(noCollegeDegree_county = if_else(hispanic_dec == "ten", 1, 0)) 
 
 # Removing useless variables 
 myWorking <- myWorking %>%
@@ -131,12 +137,22 @@ myWorking <- myWorking %>%
   mutate(noCollegeDegree_pct = noCollegeDegree_pct *100) %>%
   mutate(inc_below_pov_pct = inc_below_pov_pct *100) 
 
+# Function to compute regression result 
+
+
+myLogLin <- function(x){
+  y <- (exp(x)-1)*100 
+  return(y)
+}
 
 
 ```
 
+
+
+
 # Percent Race/Ethnicity Measures
-Measuring race/ethnicity as a 0/1 indicator for whether or not the county is in the top decile for % of total population that is that is that race/ethnicity
+
 
 ```{r,  echo=FALSE, message=FALSE, fig.width=3.5, fig.height=2.5}
 #regressing all races together
@@ -145,47 +161,253 @@ Measuring race/ethnicity as a 0/1 indicator for whether or not the county is in 
 one <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type + population | state_fips + fiscal_year)
 two <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type + population| state_fips + fiscal_year)
 three <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
-four <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + metro + nonmetro + rural| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type  + rural| state_fips + fiscal_year)
 
 etable(one,
        two,
        three,
        four,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
-  kbl(booktabs = T, caption = "Median Income Percentage Regs") %>%
+  kbl(booktabs = T, caption = "Percent Race/Ethnicity Measures") %>%
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
-qqnorm(residuals(one))
-qqnorm(residuals(two))
-qqnorm(residuals(three))
-qqnorm(residuals(four))
+# qqnorm(residuals(one))
+# qqnorm(residuals(two))
+# qqnorm(residuals(three))
+# qqnorm(residuals(four))
 
 ```
 
-<!-- interpretation of units for continuous variables: The effect for a 1 unit increase in x, $ \beta $, results in a: $(e^\beta -1)*100 $ increase in y -->
+interpretation of units for continuous variables in log-linear regression: The effect for a 1 unit increase in x results in a $(e^\beta -1)*100$ change in y.
 
-<!-- interpretation of units for dummy variables: The effect of "turning on" the dummy variable x, $ \beta $, results in a: $(e^\beta -1)*100 $ increase in y -->
+interpretation of units for dummy variables in log-linear regression: The effect of "turning on" the dummy variable x results in a $(e^\beta -1)*100$ change in y.
 
-<!-- ATTN: LATEX NOT COMPILING !! -->
 
 Observations:
 
-* a 1 % increase in the percent of the county that's white results in a 0.5% **decrease** in the size of grant award
-* a 1% increase in the percent of the county that's hispanic results in a 0.5% **increase** in the size of the grant award
-* a 1% increase in the percent of the county that lacks a college degree results in a 1.7% **decrease** in the size of the grant award
+* a 1 % increase in the percent of the county that's **white** results in a 0.6% **decrease** in the size of grant award
+* a 1% increase in the percent of the county that's **hispanic** results in a 0.6% **increase** in the size of the grant award
+* a 1% increase in the percent of the county that **lacks a college degree** results in a 1.9% **decrease** in the size of the grant award
+* "turning on" **rural** results in a 9.8% **decrease** in the size of the grant award
 
 
+# Decile Regressions
+Measuring race/ethnicity as a 0/1 indicator for whether or not the county is in the top decile for % of total population that is that is that race/ethnicity
+
+```{r,  echo=FALSE, message=FALSE, fig.width=3.5, fig.height=2.5}
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_county + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount) ~ white_county + black_county + asian_county + hispanic_county +native_county + med_income_house + noCollegeDegree_county + type  + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Decile Regressions") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# qqnorm(residuals(one))
+# qqnorm(residuals(two))
+# qqnorm(residuals(three))
+# qqnorm(residuals(four))
+
+```
+
+*No College degree and rural are too correlated to regress together (and maybe hispanic) when using deciles*
+
+* Turning on "**white** county" (*i.e.* being in the top 10% of counties with the largest amount of people identifying as white) results in a **11% decrease** in grant award sizes 
+* Turning on "**black** county" (*i.e.* being in the top 10% of counties with the largest amount of people identifying as black) results in a **25% increase** in grant award sizes 
+* Turning on "**asian** county" (*i.e.* being in the top 10% of counties with the largest amount of people identifying as asian) results in a **26% increase** in grant award sizes
+* Turning on "**hispanic** county" (*i.e.* being in the top 10% of counties with the largest amount of people identifying as hispanic) results in a **14% increase** in grant award sizes
+*  Turning on **rural** results in a **14% decrease** in grant award sizes
 
 
 # Results for Development Grants
 Grouping development and redevelopment grants together and only looking at those 
 
+```{r,  echo=FALSE, message=FALSE, fig.width=3.5, fig.height=2.5}
+#getting ready to filter on development 
+myWorking <- myWorking %>%
+  mutate(type = as.character(type)) %>%
+  mutate(type = str_sub(type, 1, 1))
+
+#only looking at development and redevelopment results
+myWorking_dev <- myWorking %>%
+  dplyr::filter(type == "D" | type == "R")
+
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type  + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Results for Development Grants") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# qqnorm(residuals(one))
+# qqnorm(residuals(two))
+# qqnorm(residuals(three))
+# qqnorm(residuals(four))
+
+```
+
+
+Observations:
+
+* a 1 % increase in the percent of the county that's **white** results in a 0.6% **decrease** in the size of grant award
+* a 1% increase in the percent of the county that's **asian** results in a 1% **increase** in the size of the grant award
+* a 1% increase in the percent of the county that's **hispanic** results in a 0.5% **increase** in the size of the grant award
+* a 1% increase in the percent of the county that **lacks a college degree** results in a 1.7% **decrease** in the size of the grant award
+* turning on **rural** results in a 12% **decrease** in the size of the grant award
+
+These are essentially the same as when looking at all grant types, but asian is more precisely estimated. 
+
+
 # Per Capita Outcomes
 Grant amount divided by total population
+
+
+```{r,  echo=FALSE, message=FALSE, fig.width=3.5, fig.height=2.5}
+#calculating per capita outcome variable 
+myWorking_perCap <- myWorking %>%
+  dplyr::mutate(amount = amount / population)
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type | state_fips + fiscal_year)
+three <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking_perCap, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type  + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Per Capita Outcomes") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# qqnorm(residuals(one))
+# qqnorm(residuals(two))
+# qqnorm(residuals(three))
+# qqnorm(residuals(four))
+
+```
+
+
+**Note: when I use a per capita measure, results flip**
+
+* a 1 % increase in the percent of the county that's **hispanic** results in a 2.5% **decrease** in the *award size per capita*
+* a 1 % increase in the percent of the county that **lacks a college degree** results in a 8% **increase** in the *award size per capita*
+* Turning on **rural** results in a 194% **increase** in the *award size per capita*
+
+# Per capita results for Development Grants
+
+```{r,  echo=FALSE, message=FALSE, fig.width=3.5, fig.height=2.5}
+#getting ready to filter on development 
+myWorking <- myWorking %>%
+  mutate(type = as.character(type)) %>%
+  mutate(type = str_sub(type, 1, 1))
+
+#only looking at PER CAPITA development and redevelopment results
+myWorking_dev <- myWorking %>%
+  dplyr::filter(type == "D" | type == "R") %>%
+  dplyr::mutate(amount = amount / population)
+
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type  | state_fips + fiscal_year)
+two <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type | state_fips + fiscal_year)
+three <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type | state_fips + fiscal_year)
+four <- feols(data = myWorking_dev, log(amount) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type  + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Per capita results for Development Grants") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# qqnorm(residuals(one))
+# qqnorm(residuals(two))
+# qqnorm(residuals(three))
+# qqnorm(residuals(four))
+
+```
+
+**Note: when I use a per capita measure for development grants, results flip**
+
+
+
+* a 1 % increase in the percent of the county that's **hispanic** results in a 2.4% **decrease** in the *award size per capita*
+* a 1 % increase in the percent of the county that **lacks a college degree** results in a 8% **increase** in the *award size per capita*
+* Turning on **rural** results in a 191% **increase** in the *award size per capita*
+
 
 # Percent of total
 
 
+```{r,  echo=FALSE, message=FALSE}
+
+
+myWhole <- myWorking %>%
+  dplyr::group_by(fiscal_year) %>%
+  dplyr::summarise(year_total_amount = sum(amount))
+
+myWorking <- left_join(myWorking, myWhole, by = "fiscal_year")
+
+myWorking <- myWorking %>%
+  dplyr::mutate(amount_percent = (amount / year_total_amount)*100)
+
+#regressing all races together
+
+# Median income 
+one <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + type + population | state_fips + fiscal_year)
+two <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + type + population| state_fips + fiscal_year)
+three <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type + population| state_fips + fiscal_year)
+four <- feols(data = myWorking, log(amount_percent) ~ white_pct + black_pct + asian_pct + hispanic_pct +native_pct + med_income_house + noCollegeDegree_pct + type  + rural| state_fips + fiscal_year)
+
+etable(one,
+       two,
+       three,
+       four,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Percent of total") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+# qqnorm(residuals(one))
+# qqnorm(residuals(two))
+# qqnorm(residuals(three))
+# qqnorm(residuals(four))
+
+```
+
+*These regression results are the exact same as the "1. Percent Race/Ethnicity Measures" because I calculated the % of total with a linear-monotonic transformation (divided it all by the same total and multipled it all by 100). The R2 is different because there is less variation with this transformation*
+
+
+Observations:
+
+* a 1 % increase in the percent of the county that's **white** results in a 0.6% **decrease** in the size of grant award
+* a 1% increase in the percent of the county that's **hispanic** results in a 0.6% **increase** in the size of the grant award
+* a 1% increase in the percent of the county that **lacks a college degree** results in a 1.9% **decrease** in the size of the grant award
+* "turning on" **rural** results in a 9.8% **decrease** in the size of the grant award
 
 
 
