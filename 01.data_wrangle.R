@@ -101,6 +101,210 @@ ipums_thin <- ipums %>%
   
 vroom_write(ipums_thin, "Datasets/clean_data/ipums_decennial.csv")
 
+
+
+
+# -------------- IPUMS HISTORIC CENSUS DATA (take two)---------------
+
+# IPUMS Dataset
+ipums <- vroom("Datasets/raw_data/nhgis0006_csv/nhgis0006_ts_nominal_county.csv")
+ipums_labs <-ipums[1,] #Getting descriptions
+
+ipums <- ipums[-1,] # deleting descriptions from data
+
+# AV0AA: y       Persons: Total
+# A57AA: y       Persons: Urban
+# A57AB: n       Persons: Urban--Inside urbanized areas
+# A57AC: n       Persons: Urban--Outside urbanized areas (in urban clusters)
+# A57AD: y       Persons: Rural
+# B18AA: y       Persons: White (single race)
+# B18AB: y       Persons: Black or African American (single race)
+# B18AC: y       Persons: American Indian and Alaska Native (single race)
+# B18AD: y       Persons: Asian and Pacific Islander and Other Race (single race)
+# B18AE: n       Persons: Two or More Races
+# A35AA: y       Persons: Hispanic or Latino
+# B69AA: y        Persons: 25 years and over ~ Less than 9th grade
+# B69AB: y       Persons: 25 years and over ~ 9th grade to 3 years of college (until 1980) or to some college or associate's degree (since 1990)
+# B69AC: n       Persons: 25 years and over ~ 4 or more years of college (until 1980) or bachelor's degree or higher (since 1990)
+# B84AA: n       Persons: 16 years and over ~ In labor force
+# B84AB: n       Persons: 16 years and over ~ In labor force--In Armed Forces
+# B84AC: n       Persons: 16 years and over ~ In labor force--Civilian
+# B84AD: n       Persons: 16 years and over ~ In labor force--Civilian--Employed
+# B84AE: n       Persons: 16 years and over ~ In labor force--Civilian--Unemployed
+# B84AF: y       Persons: 16 years and over ~ Not in labor force
+# B79AA: y       Median income in previous year: Households
+# BD5AA: y       Per capita income in previous year
+# CL6AA: y       Persons: Poverty status is determined ~ Income below poverty level
+
+# Additional variables -------------------
+
+# Margins of Error 
+# (Provided for American Community Survey data only) 
+# 
+# Table 1: (AV0) Total Population
+# AV0AAM:      Margin of error: Persons: Total
+# 
+# Table 2: (B69) Persons 25 Years and Over by Educational Attainment [3]
+# B69AAM:      Margin of error: Persons: 25 years and over ~ Less than 9th grade
+# B69ABM:      Margin of error: Persons: 25 years and over ~ 9th grade to 3 years of college (until 1980) or to some college or associate's degree (since 1990)
+#         B69ACM:      Margin of error: Persons: 25 years and over ~ 4 or more years of college (until 1980) or bachelor's degree or higher (since 1990)
+# 
+# Table 3: (B84) Persons 16 Years and Over by Labor Force and Employment Status [6]
+# B84AAM:      Margin of error: Persons: 16 years and over ~ In labor force
+# B84ABM:      Margin of error: Persons: 16 years and over ~ In labor force--In Armed Forces
+# B84ACM:      Margin of error: Persons: 16 years and over ~ In labor force--Civilian
+# B84ADM:      Margin of error: Persons: 16 years and over ~ In labor force--Civilian--Employed
+# B84AEM:      Margin of error: Persons: 16 years and over ~ In labor force--Civilian--Unemployed
+# B84AFM:      Margin of error: Persons: 16 years and over ~ Not in labor force
+# 
+# Table 4: (B79) Median Household Income in Previous Year
+# B79AAM:      Margin of error: Median income in previous year: Households
+# 
+# Table 5: (BD5) Per Capita Income in Previous Year
+# BD5AAM:      Margin of error: Per capita income in previous year
+# 
+# Table 6: (CL6) Persons* below Poverty Level in Previous Year
+# CL6AAM:      Margin of error: Persons: Poverty status is determined ~ Income below poverty level
+
+# stop of additional variables -----------------
+
+ipums_thin <- ipums %>%
+  dplyr::mutate(FIPS = paste0(STATEFP, COUNTYFP)) %>%
+  dplyr::select(FIPS, YEAR, AV0AA, A57AA, A57AD, B18AA, B18AB, B18AC, B18AD, A35AA, B69AA, B69AB, B84AF, B79AA, BD5AA, CL6AA) %>%
+  
+  dplyr::rename(population = AV0AA) %>% #renaming variables
+  dplyr::rename(urban = A57AA) %>%
+  dplyr::rename(rural = A57AD) %>%
+  dplyr::rename(white = B18AA) %>%
+  dplyr::rename(black = B18AB) %>%
+  dplyr::rename(native = B18AC) %>%
+  dplyr::rename(asian = B18AD) %>%
+  dplyr::rename(hispanic = A35AA) %>%
+  dplyr::rename(less9thGrade = B69AA) %>%
+  dplyr::rename(ninthToSomeCollege = B69AB) %>%
+  dplyr::rename(unemployed = B84AF) %>%
+  dplyr::rename(med_income_house = B79AA) %>%
+  dplyr::rename(per_cap_income = BD5AA) %>%
+  dplyr::rename(inc_below_pov = CL6AA) %>%
+  
+  dplyr::mutate(population = as.numeric(population)) %>% #getting variable as numbers 
+  dplyr::mutate(urban = as.numeric(urban)) %>%
+  dplyr::mutate(rural = as.numeric(rural)) %>%
+  dplyr::mutate(white = as.numeric(white)) %>%
+  dplyr::mutate(black = as.numeric(black)) %>%
+  dplyr::mutate(native = as.numeric(native)) %>%
+  dplyr::mutate(asian = as.numeric(asian)) %>%
+  dplyr::mutate(hispanic = as.numeric(hispanic)) %>%
+  dplyr::mutate(less9thGrade = as.numeric(less9thGrade)) %>%
+  dplyr::mutate(ninthToSomeCollege = as.numeric(ninthToSomeCollege)) %>%
+  dplyr::mutate(unemployed = as.numeric(unemployed)) %>%
+  dplyr::mutate(med_income_house = as.numeric(med_income_house)) %>%
+  dplyr::mutate(per_cap_income = as.numeric(per_cap_income)) %>%
+  dplyr::mutate(inc_below_pov = as.numeric(inc_below_pov)) %>%
+  
+  dplyr::mutate(noCollegeDegree = less9thGrade + ninthToSomeCollege) %>%   #constructing less than college degree 
+  
+  dplyr::mutate(urban_pct = urban / population) %>% #calculating percent of county of certain demographics
+  dplyr::mutate(rural_pct = rural / population) %>%
+  dplyr::mutate(white_pct = white / population) %>%
+  dplyr::mutate(black_pct = black / population) %>%
+  dplyr::mutate(native_pct = native / population) %>%
+  dplyr::mutate(asian_pct = asian / population) %>%
+  # dplyr::mutate(two_race_pct = two_race / population) %>%
+  dplyr::mutate(hispanic_pct = hispanic / population) %>%
+  dplyr::mutate(noCollegeDegree_pct = noCollegeDegree / population) %>%
+  dplyr::mutate(unemployed_pct = unemployed / population) %>%
+  dplyr::mutate(inc_below_pov_pct = inc_below_pov / population)
+
+
+impus_nas <- ipums_thin %>%
+  dplyr::summarise_all(funs(sum(is.na(.))))
+
+# ATTN: median income per household and per capita income are not available in 1970 and 2010 
+# ATTN: 2008-2012 YEAR field is pretty much useless
+
+ipums_thin <- ipums_thin %>%
+  dplyr::filter(YEAR != "2008-2012") %>%
+  dplyr::filter(YEAR != "2010")
+
+impus_nas_2 <- ipums_thin %>%
+  dplyr::summarise_all(funs(sum(is.na(.))))
+
+vroom_write(ipums_thin, "Datasets/clean_data/ipums_decennial.csv")
+
+
+# population by year, provided by year -------------------------------
+
+# myNBER <- vroom("https://data.nber.org/census/popest/county_population.csv") #works w/ internet
+myNBER <- vroom("Datasets/raw_data/county_population.csv")
+
+
+# this script works through 2009, going to have to do something slightly different for >2010 
+myNBER_clean_1 <- myNBER %>% 
+  filter(nchar(fipsco) != 5) %>%
+  filter(fipsco != "000") %>%
+  dplyr::select(fips, starts_with("pop"), -pop20104, -pop2010, -pop2011, -pop2012, -pop2013, -pop2014, -pop19904) %>%
+  pivot_longer(!fips, names_to = "variable", values_to = "value") %>% # Pivoting longer so that we can get the name as a variable 
+  dplyr::mutate(year = str_sub(variable, -4)) %>% #extracting year from variable name and making new variable
+  dplyr::mutate(variable = str_sub(variable, 1,-5)) %>% #trimming year off variable name
+  pivot_wider(id_cols = c(fips, year), names_from = variable, values_from = value)  # pivoting wider now that we have a year column
+
+
+# this script works through >2010
+myNBER_clean_2 <- myNBER %>% 
+  filter(nchar(fipsco) == 5) %>%
+  dplyr::select(fips, -pop20104, pop2010, pop2011, pop2012, pop2013, pop2014, -pop19904) %>%
+  pivot_longer(!fips, names_to = "variable", values_to = "value") %>% # Pivoting longer so that we can get the name as a variable 
+  dplyr::mutate(year = str_sub(variable, -4)) %>% #extracting year from variable name and making new variable
+  dplyr::mutate(variable = str_sub(variable, 1,-5)) %>% #trimming year off variable name
+  pivot_wider(id_cols = c(fips, year), names_from = variable, values_from = value)  # pivoting wider now that we have a year column
+
+
+myNBER_clean <- bind_rows(myNBER_clean_1, myNBER_clean_2) %>%
+  rename(annual_population = pop)
+
+vroom_write(ipums_thin, "Datasets/clean_data/annual_population.csv")
+
+# Getting 2010 decennial ----------
+
+# Census stuff
+census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
+# readRenviron("~/.Renviron")
+# Sys.getenv("CENSUS_API_KEY")
+
+v10.dec_1 <- load_variables(2010, dataset = "sf1", cache = TRUE)
+v10.dec_2 <- load_variables(2010, dataset = "sf2", cache = TRUE)
+
+
+myDec <- get_decennial(geography = "county", variables = vars, geometry = FALSE, cache_table = TRUE, year = 2010)
+
+
+
+us_population <- get_estimates(geography = "county", product = "population", year = 2010)
+
+# Variables from decennial census
+# P001001: population
+# P003001: total race
+# P003002: white alone
+# P003003: black
+# P003004: American Indian and Alaska Native alone
+# P003005: Asian alone
+# P003006: Native Hawaiian and Other Pacific Islander alone
+# P003007: Some Other Race alone
+# P003008: Two or More Races
+# P004001: Total Hispanic or Latino
+# P004003: Hispanic or Latino
+# H002002: Urban
+# H002005: rural
+
+
+
+
+
+
+
+
+
 # -------------- DISAGGREGATED LWCF (long by project) ---------------
 # provided by margaret 
 myLWCF <- vroom("Datasets/clean_data/LWCF_features_from TWS.csv")
