@@ -254,7 +254,7 @@ vars <- list(population, total_race, white, black, native, asian, islander, othe
 rm(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99, GED, highschool, bachelors, total_school)
 
 #pulling data from census
-ACS <- get_acs(geography = "county", variables = vars, geometry = FALSE, cache_table = TRUE)
+ACS <- get_acs(geography = "county", variables = vars, geometry = FALSE, cache_table = TRUE, year = 2015)
 
 #pivot data wide
 myACS <- ACS %>%
@@ -352,6 +352,13 @@ vroom_write(myWorking_acsOnly, "Datasets/clean_data/lwcf_tws_projects_onlyACS.cs
 
 myCounty <- left_join(myCounty, myACS, by = c("county_fips" = "GEOID"))
 vroom_write(myCounty, "Datasets/clean_data/aggregate_lwcf_tws_projects_onlyACS.csv")
+
+
+
+
+
+
+
 
 
 
