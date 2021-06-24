@@ -12,6 +12,24 @@ library(tidycensus)
 library(vroom)
 library(choroplethrMaps) # to pull in the county data (FIPS codes etc)
 
+# -------------- AGGREGATED LWCF (not long by year) ---------------
+
+#reading in the files I downloaded from TWS website
+one.1 <- vroom("Datasets/raw_data/State LWCF by County (1) copy.csv")
+one.2 <- vroom("Datasets/raw_data/State LWCF by County (1) copy 2.csv")
+one.3 <- vroom("Datasets/raw_data/State LWCF by County (1).csv")
+two <- vroom("Datasets/raw_data/State LWCF by County (2).csv")
+three <- vroom("Datasets/raw_data/State LWCF by County (3).csv")
+four <- vroom("Datasets/raw_data/State LWCF by County (4).csv")
+five <- vroom("Datasets/raw_data/State LWCF by County (5).csv")
+six <- vroom("Datasets/raw_data/State LWCF by County (6).csv")
+
+myCounty <- bind_rows(one.1, one.2, one.3, two, three, four, five, six) %>%
+  distinct() 
+rm(one.1, one.2, one.3, two, three, four, five, six)
+
+vroom_write(myCounty, "Datasets/clean_data/creel_lwcf_tws.csv")
+
 # -------------- IPUMS HISTORIC CENSUS DATA ---------------
 
 # IPUMS Dataset
@@ -182,19 +200,20 @@ ipums_clean_2_3 <- left_join(ipums_clean_2, ipums_clean_3, by = c("FIPS", "YEAR"
 ipums_clean <- bind_rows(ipums_clean_1, ipums_clean_2_3) %>%
   dplyr::mutate(YEAR = as.numeric(YEAR))
 
-rm(ipums_clean_1, ipums_clean_2, ipums_clean_3, ipums_clean_2_3, impus_nas)
+rm(ipums_clean_1, ipums_clean_2, ipums_clean_3, ipums_clean_2_3, impus_nas, ipums)
 
 #writing to clean_data file
 vroom_write(ipums_clean, "Datasets/clean_data/ipums_decennial.csv")
 
 
-# population by year, provided by NBER -------------------------------
+#  ----------------- population by year, provided by NBER -----------------
+# only goes from 1970 - 2014
 
 # myNBER <- vroom("https://data.nber.org/census/popest/county_population.csv") #works w/ internet
 myNBER <- vroom("Datasets/raw_data/county_population.csv")
 
 
-# this script works through 2009, going to have to do something slightly different for >2010 
+# this chunk works through 2009, going to have to do something slightly different for >2010 
 myNBER_clean_1 <- myNBER %>% 
   filter(nchar(fipsco) != 5) %>%
   filter(fipsco != "000") %>%
@@ -205,7 +224,7 @@ myNBER_clean_1 <- myNBER %>%
   pivot_wider(id_cols = c(fips, year), names_from = variable, values_from = value)  # pivoting wider now that we have a year column
 
 
-# this script works through >2010
+# this chunk works through >2010
 myNBER_clean_2 <- myNBER %>% 
   filter(nchar(fipsco) == 5) %>%
   dplyr::select(fips, -pop20104, pop2010, pop2011, pop2012, pop2013, pop2014, -pop19904) %>%
@@ -217,23 +236,47 @@ myNBER_clean_2 <- myNBER %>%
 
 myNBER_clean <- bind_rows(myNBER_clean_1, myNBER_clean_2) %>%
   rename(annual_population = pop)
-rm(myNBER_clean_1, myNBER_clean_2)
+rm(myNBER_clean_1, myNBER_clean_2, myNBER)
 
-#getting a 
+#getting a merge year for other data
 myNBER_clean <- myNBER_clean %>%
-  dplyr::mutate(year = as.numeric(year)) %>%
-  dplyr::mutate(merge_year = round_any(year, 10)) %>%
-  dplyr::mutate(merge_year = as.numeric(merge_year))
+  dplyr::mutate(year = as.numeric(year)) 
 
-vroom_write(ipums_clean, "Datasets/clean_data/annual_population.csv")
+#  ----------------- population by year, ACS  (2015 - 2018-----------------
 
-# -------------- MERGING CLEAN NBER DATA (ANNUAL POP) AND IPUMS DATA (DECENNIAL CENSUS) -------------- #
-#Contains annual population levels for every county, decennial demographic characteristics 
+census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
+# readRenviron("~/.Renviron")
+# Sys.getenv("CENSUS_API_KEY")
 
-myWorking <- left_join(myNBER_clean, ipums_clean, by = c("merge_year" = "YEAR", "fips" = "FIPS"))
+myACS <-  get_acs(geography = "county", variables = "B01003_001", geometry = FALSE, cache_table = TRUE, year = 2015)
+
+myACS <- myACS %>%
+  rename(fips = GEOID) %>%
+  rename(annual_population = estimate) %>%
+  mutate(year = 2015) %>%
+  dplyr::select(fips, annual_population, year)
 
 
-# ----- MERGING LWCF DATASET THAT'S LONG BY PARK WITH CHARACTERISITCS (long by project) ----- #
+for (i in 2016:2018) {
+  temp <-  get_acs(geography = "county", variables = "B01003_001", geometry = FALSE, cache_table = TRUE, year = i)
+  
+  temp <- temp %>%
+    rename(fips = GEOID) %>%
+    rename(annual_population = estimate) %>%
+    mutate(year = i) %>%
+    dplyr::select(fips, annual_population, year)
+  
+  myACS <- bind_rows(myACS, temp)
+  rm(temp)
+}
+
+#combing NBER data and ACS data to get annual pop from 1970 - 2018
+myAnnualPop <- bind_rows(myNBER_clean, myACS) 
+rm(myNBER_clean, myACS)
+
+vroom_write(myAnnualPop, "Datasets/clean_data/annual_population.csv")
+
+# ----- MERGING LWCF DATASET THAT'S LONG BY PROJECT WITH NBER (ANNUAL POP 1970-2014) AND  ACS (ANNUAL POP 2015-2018), ----- #
 
 # provided by Margaret 
 myLWCF <- vroom("Datasets/clean_data/LWCF_features_from TWS.csv")
@@ -256,54 +299,54 @@ myLWCF <- myLWCF %>%
 
 #merge to get county fips (ATTN: not able to identify 4,490 projects with a FIPS code ... )
 myLWCF <- dplyr::left_join(myLWCF, county.map, by = c("county" = "NAME", "state_fips" = "STATE")) %>%
-  dplyr::rename(county_fips = region)
-rm(county.map)
-
-#Getting nearest decade
-myLWCF <- myLWCF %>%
+  dplyr::rename(county_fips = region) %>%
   dplyr::mutate(fiscal_year = as.character(fiscal_year)) %>%
   dplyr::mutate(fiscal_year = str_sub(fiscal_year, 1, 4)) %>%
   dplyr::mutate(fiscal_year = as.numeric(fiscal_year)) %>%
-  dplyr::mutate(fiscal_year = if_else(fiscal_year == 1965, fiscal_year + 1, fiscal_year)) %>%
   dplyr::select(-c(objectid, county, grantidelement, grantelementtitle, grantsponsor, congdistrict, relate, statefull)) # Removing useless variables 
+rm(county.map)
+
+myPop_LWCF <- left_join(myAnnualPop, myLWCF, by = c("fips" = "county_fips" , "year" = "fiscal_year")) %>%
+  mutate(got_grant = if_else(is.na(amount), 0, 1)) %>%
+  dplyr::mutate(merge_year = round_any(year, 10)) %>%
+  dplyr::mutate(merge_year = if_else(merge_year < 1970, 1970, merge_year)) %>% # don't have data earlier than 1970 but have a few grants from the 60s
+  dplyr::mutate(merge_year = if_else(merge_year == 2020, 2010, merge_year))  # don't have decennial data for 2020, so using 2010 for now (only 870 grants post 2014)
+  
+
+# -------------- MERGING LWCF, ANNUAL POP AND IPUMS DATA (DECENNIAL CENSUS) -------------- #
+#Contains annual population levels for every county, decennial demographic characteristics, all LWCF for which I could get a county
+
+myFinal <- left_join(myPop_LWCF, ipums_clean, by = c("merge_year" = "YEAR", "fips" = "FIPS")) %>%
+  distinct()
 
 
+vroom_write(myFinal, "Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv")
 
-#ATTN: MISSING 5,421 DEMOGRAPHICS FOR PROJECTS, 979 are for merge year 2020
-myWorking_2 <- left_join(myWorking, myLWCF, by = c("fips" = "county_fips" , "year" = "fiscal_year"))
+#unique grants
+myTest_1 <- myFinal %>%
+  filter(!is.na(amount)) %>%
+  select(year, fips, amount, type) %>%
+  distinct() 
 
+#grants post 2014
+myTest_2 <- myFinal %>%
+  filter(!is.na(amount)) %>%
+  select(year, fips, amount) %>%
+  distinct() %>%
+  filter(year >= 2015)
 
+# ****************************************************************** # 
+# **************** THIS IS OUR FINAL DATASET, ABOVE **************** #
+# ****************************************************************** # 
 
 
 # -------------- 2015 American community survey ---------------
-
 # Pulling in for merge year 2020 because I don't have the census info in the IPUMS dataset for any year greater than 2014
 
 # Census stuff
 census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
 # readRenviron("~/.Renviron")
 # Sys.getenv("CENSUS_API_KEY")
-
-# Decennial -------
-
-# Decennial variables: NOTE: already got from IPUMS
-# v10.dec <- load_variables(2010, dataset = "sf1", cache = TRUE)
-
-# Variables from decennial census
-# P001001: population
-# H002002: Urban
-# H002005: rural
-# P003001: total race
-# P003002: white alone
-# P003003: black
-# P003004: American Indian and Alaska Native alone
-# P003005: Asian alone
-# P003006: Native Hawaiian and Other Pacific Islander alone
-# P003007: Some Other Race alone
-# P003008: Two or More Races
-# P004001: Total Hispanic or Latino
-# P004003: Hispanic or Latino
-
 
 # ACS -------
 
@@ -447,63 +490,11 @@ myWorking <- bind_rows(myWorking_sub_20, myWorking_20)
 vroom_write(myWorking, "Datasets/clean_data/lwcf_tws_projects_IPUMS&ACS.csv")
 
 
-
 # ------- combining LWCF with ACS only ------- #
 
 myWorking_acsOnly <- left_join(myLWCF, myACS, by = c("county_fips" = "GEOID"))
 vroom_write(myWorking_acsOnly, "Datasets/clean_data/lwcf_tws_projects_onlyACS.csv")
 
 
-# ------- combining aggregate LWCF with ACS only ------- #
-
-myCounty <- left_join(myCounty, myACS, by = c("county_fips" = "GEOID"))
-vroom_write(myCounty, "Datasets/clean_data/aggregate_lwcf_tws_projects_onlyACS.csv")
-
-
-
-# -------------- AGGREGATED LWCF (not long by year) ---------------
-
-#reading in the files I downloaded from TWS website
-one.1 <- vroom("Datasets/raw_data/State LWCF by County (1) copy.csv")
-one.2 <- vroom("Datasets/raw_data/State LWCF by County (1) copy 2.csv")
-one.3 <- vroom("Datasets/raw_data/State LWCF by County (1).csv")
-two <- vroom("Datasets/raw_data/State LWCF by County (2).csv")
-three <- vroom("Datasets/raw_data/State LWCF by County (3).csv")
-four <- vroom("Datasets/raw_data/State LWCF by County (4).csv")
-five <- vroom("Datasets/raw_data/State LWCF by County (5).csv")
-six <- vroom("Datasets/raw_data/State LWCF by County (6).csv")
-
-myCounty <- bind_rows(one.1, one.2, one.3, two, three, four, five, six) %>%
-  distinct() 
-
-rm(one.1, one.2, one.3, two, three, four, five, six)
-
-vroom_write(myCounty, "Datasets/clean_data/creel_lwcf_tws.csv")
-
-
-# --------------  ERS urban rural code (only available in 2010...) -------------- #
-
-myERS <- vroom("Datasets/clean_data/ERS_urban_rural.csv")
-
-myERS <- myERS %>%
-  dplyr::select(FIPS, Population_2010, RUCC_2013, Description)
-
-myLWCF <- left_join(myLWCF, myERS, by = c("county_fips" = "FIPS"))
-
-
-
-# -------- getting aggregate county data ready ----------#
-#prep for merge
-myCounty <- myCounty %>%
-  dplyr::mutate(Name = str_to_title(Name)) %>%
-  dplyr::mutate(state_fips = fips(state = State))
-
-
-#merge to get county fips (ATTN: not able to identify 4,490 projects with a FIPS code ... )
-myCounty <- dplyr::left_join(myCounty, county.map, by = c("Name" = "NAME", "state_fips" = "STATE")) %>%
-  dplyr::rename(county_fips = region)
-
-
-myCounty <- left_join(myCounty, myERS, by = c("county_fips" = "FIPS"))
 
 
