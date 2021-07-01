@@ -1,0 +1,201 @@
+---
+title: "Four Week Update"
+author: "Andie Creel"
+date: "7/1/2021"
+output: 
+  pdf_document:
+    number_sections: true
+    extra_dependencies: ["float"]
+
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/regressions/four_week_update.pdf')) })
+---
+
+```{r, include=FALSE}
+#R Markdown stuff
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+options(tinytex.verbose = TRUE)
+```
+
+```{r setup, include=FALSE}
+library(vroom)
+library(tidyr)
+library(stringr)
+library(usmap)
+library(tidycensus)
+library(ggplot2)
+library(fixest)
+library(kableExtra)
+library(gtools)
+library(forcats)
+library("wesanderson")
+options(scipen=99999)
+library(janitor)
+library(dplyr)
+
+
+myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv")
+
+# additional data cleaning ------------
+
+# Removing counties whose FIPSs code I didn't identify 
+myWorking <- myWorking %>%
+  filter(!is.na(fips)) %>%
+  distinct() %>%
+  mutate(type = as.factor(type)) %>%
+  mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>%
+  filter(!is.na(white_pct)) %>%
+  dplyr::mutate(POC_pct = 100 - white_pct)
+
+# Getting quantiles (Sims 2020) using purrr
+
+#Getting the quantile for each state each year! 
+myQuants <- myWorking %>%
+  dplyr::group_by(state_fips, year) %>%
+  dplyr::summarise(quants = list(quantile(POC_pct, probs = c(.25, .5, .75)))) %>%
+  unnest_wider(quants) %>%
+  dplyr::rename(poc_25 = `25%`) %>%
+  dplyr::rename(poc_50 = `50%`) %>%
+  dplyr::rename(poc_75 = `75%`)
+
+#joining back in
+myWorking <- left_join(myWorking, myQuants, by = c("state_fips", "year"))
+
+#making a factor variable for the quantiles (by state and year)
+myWorking <- myWorking %>%
+  mutate(poc_quants = if_else(POC_pct > poc_75, "4", "")) %>% # fourth quantile 
+  mutate(poc_quants = if_else(POC_pct <= poc_75, "3", poc_quants)) %>% # third quantile
+  mutate(poc_quants = if_else(POC_pct <= poc_50, "2", poc_quants)) %>% # second quantile
+  mutate(poc_quants = if_else(POC_pct <= poc_25, "1", poc_quants)) %>% # first quantile 
+  select(-poc_75, -poc_50, - poc_25) %>%
+  mutate(poc_quants = as.factor(poc_quants))
+
+
+
+myLogLin <- function(x){
+  y <- (exp(x)-1)*100 
+  return(y)
+}
+
+
+```
+
+
+
+# Cloropleth Maps
+
+```{r, echo=FALSE, message=FALSE}
+
+
+
+
+
+```
+
+
+# Whether or not a county gets a grant
+Zeros are back in
+
+```{r, include = FALSE, echo=FALSE, message=FALSE}
+# Exploratory work
+
+# Median income 
+white_pct <- glm(family = "binomial", data = myWorking, formula = got_grant ~ white_pct )
+black_pct <- glm(family = "binomial", data = myWorking, formula = got_grant ~ black_pct)
+
+summary(white_pct)
+exp(coef(white_pct))
+
+summary(black_pct)
+exp(coef(black_pct))
+
+white_four <- glm(family = "binomial", data = myWorking, formula = got_grant ~ white_four )
+black_four <- glm(family = "binomial", data = myWorking, formula = got_grant ~ black_four)
+
+summary(white_four)
+exp(coef(white_four))
+
+summary(black_four)
+exp(coef(black_four))
+
+
+```
+
+
+```{r, echo=FALSE, message=FALSE}
+#Replicating UCLA
+
+myTry <- myWorking %>%
+  dplyr::select(got_grant, white_pct, med_income_house) %>%
+  filter(!is.na(white_pct)) %>%
+  dplyr::mutate(POC_pct = 100 - white_pct)
+
+#Summary stats
+summary(myTry)
+sapply(myTry, sd)
+
+
+# --- SIMPLE REGRESSION ON PERCENT POC --- #
+myPOC <- glm(got_grant ~ POC_pct, data = myTry, family = "binomial")
+summary(myPOC)
+confint(myPOC)
+
+newData_poc <- myTry %>%
+  dplyr::select(POC_pct)
+
+newData_poc$pocP <- predict(myPOC, newdata = newData_poc, type = "response")
+
+
+newdata2_poc <- cbind(newData_poc, predict(myPOC, newdata = newData_poc, type = "link",
+    se = TRUE))
+
+newdata2_poc <- within(newdata2_poc, {
+    PredictedProb <- plogis(fit)
+    LL <- plogis(fit - (1.96 * se.fit))
+    UL <- plogis(fit + (1.96 * se.fit))
+})
+
+
+ggplot(newdata2_poc, aes(x = POC_pct, y = PredictedProb)) + geom_ribbon(aes(ymin = LL,
+    ymax = UL), alpha = 0.2) + geom_line(size = 1)
+
+
+# --- SIMPLE REGRESSION ON MEDIAN HOUSEHOLD INCOME --- # 
+
+
+myIncome <- glm(got_grant ~ med_income_house, data = myTry, family = "binomial")
+summary(myIncome)
+confint(myIncome)
+
+newData_inc <- myTry %>%
+  dplyr::select(med_income_house)
+
+newData_inc$incP <- predict(myIncome, newdata = newData_inc, type = "response")
+
+newdata2_inc <- cbind(newData_inc, predict(myIncome, newdata = newData_inc, type = "link",
+    se = TRUE))
+
+newdata2_inc <- within(newdata2_inc, {
+    PredictedProb <- plogis(fit)
+    LL <- plogis(fit - (1.96 * se.fit))
+    UL <- plogis(fit + (1.96 * se.fit))
+})
+
+
+ggplot(newdata2_inc, aes(x = med_income_house, y = PredictedProb)) + geom_ribbon(aes(ymin = LL,
+  ymax = UL), alpha = 0.2) + geom_line(size = 1)
+
+
+
+```
+
+Next steps 
+* Control for income when looking at percentage of POC, because something odd is happening
+* Could also control for home ownership, education, poverty etc (going to discuss with Sims at noon)
+
+
+
+
+
+
+
