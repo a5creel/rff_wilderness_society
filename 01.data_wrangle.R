@@ -33,68 +33,34 @@ vroom_write(myCounty, "Datasets/clean_data/creel_lwcf_tws.csv")
 # -------------- IPUMS HISTORIC CENSUS DATA ---------------
 
 # IPUMS Dataset
-ipums <- vroom("Datasets/raw_data/nhgis0008_csv/nhgis0008_ts_nominal_county.csv")
+ipums <- vroom("Datasets/raw_data/nhgis0010_csv/nhgis0010_ts_nominal_county.csv")
 ipums <- ipums[-1,] # deleting descriptions from data
 
-# AV0AA: y       Persons: Total
-# A57AA: y       Persons: Urban
-# A57AB: n       Persons: Urban--Inside urbanized areas
-# A57AC: n       Persons: Urban--Outside urbanized areas (in urban clusters)
-# A57AD: y       Persons: Rural
-# B18AA: y       Persons: White (single race)
-# B18AB: y       Persons: Black or African American (single race)
-# B18AC: y       Persons: American Indian and Alaska Native (single race)
-# B18AD: y       Persons: Asian and Pacific Islander and Other Race (single race)
-# B18AE: n       Persons: Two or More Races
-# A35AA: y       Persons: Hispanic or Latino
-# B69AA: y        Persons: 25 years and over ~ Less than 9th grade
-# B69AB: y       Persons: 25 years and over ~ 9th grade to 3 years of college (until 1980) or to some college or associate's degree (since 1990)
-# B69AC: n       Persons: 25 years and over ~ 4 or more years of college (until 1980) or bachelor's degree or higher (since 1990)
-# B84AA: n       Persons: 16 years and over ~ In labor force
-# B84AB: n       Persons: 16 years and over ~ In labor force--In Armed Forces
-# B84AC: n       Persons: 16 years and over ~ In labor force--Civilian
-# B84AD: n       Persons: 16 years and over ~ In labor force--Civilian--Employed
-# B84AE: n       Persons: 16 years and over ~ In labor force--Civilian--Unemployed
-# B84AF: y       Persons: 16 years and over ~ Not in labor force
-# B79AA: y       Median income in previous year: Households
-# BD5AA: y       Per capita income in previous year
-# CL6AA: y       Persons: Poverty status is determined ~ Income below poverty level
-
-# B37AA:       Housing units: Owner occupied
-# B37AB:       Housing units: Renter occupied
+# Variables described in nhgis0010_ts_nominal_county_codebook.txt
 # 
-# B39AA:       Housing units: Owner occupied ~ Householder is White (single race)
-# B39AB:       Housing units: Owner occupied ~ Householder is Black or African American (single race)
-# B39AC:       Housing units: Owner occupied ~ Householder is American Indian, Alaska Native, Asian, Pacific Islander, or Some Other Race (single race)
-# B39AD:       Housing units: Owner occupied ~ Householder is Two or More Races
-# B39AE:       Housing units: Renter occupied ~ Householder is White (single race)
-# B39AF:       Housing units: Renter occupied ~ Householder is Black or African American (single race)
-# B39AG:       Housing units: Renter occupied ~ Householder is American Indian, Alaska Native, Asian, Pacific Islander, or Some Other Race (single race)
-# B39AH:       Housing units: Renter occupied ~ Householder is Two or More Races
-
-# CZ5AA:       Housing units: Owner occupied ~ Not Hispanic or Latino householder
-# CZ5AB:       Housing units: Owner occupied ~ Hispanic or Latino householder
-# CZ5AC:       Housing units: Renter occupied ~ Not Hispanic or Latino householder
-# CZ5AD:       Housing units: Renter occupied ~ Hispanic or Latino householder
-
-# Additional variables described in nhgis0007_ts_nominal_county_codebook.txt
+# Table 5: (CY6) Persons by Single Race/Ethnicity [5]
+# CY6AA:       Persons: Not Hispanic or Latino ~ White (single race reported or, since 2000, race combinations likely to report this single race)
+# CY6AB:       Persons: Not Hispanic or Latino ~ Black or African American (single race reported or, since 2000, race combinations likely to report this single race)
+# CY6AC:       Persons: Not Hispanic or Latino ~ American Indian, Alaska Native, Asian, and Pacific Islander (single race reported or, since 2000, race combinations likely to report one of these single races)
+# CY6AD:       Persons: Not Hispanic or Latino ~ Some Other Race (single race reported or, since 2000, race combinations likely to report this single race)
+# CY6AE:       Persons: Hispanic or Latino
 
 
 # data manipulation -----------------
 
 ipums_clean <- ipums %>%
   dplyr::mutate(FIPS = paste0(STATEFP, COUNTYFP)) %>%
-  dplyr::select(FIPS, YEAR, AV0AA, A57AA, A57AD, B18AA, B18AB, B18AC, B18AD, A35AA, B69AA, B69AB, B84AF, B79AA, BD5AA, CL6AA,
+  dplyr::select(FIPS, YEAR, AV0AA, A57AA, A57AD, starts_with("CY6"), B69AA, B69AB, B84AF, B79AA, BD5AA, CL6AA,
                 B37AA, B37AB, B39AA, B39AB, B39AC, B39AD, B39AE, B39AF, B39AG, B39AH, CZ5AB, CZ5AD) %>%
   
   dplyr::rename(population = AV0AA) %>% #renaming variables
   dplyr::rename(urban = A57AA) %>%
   dplyr::rename(rural = A57AD) %>%
-  dplyr::rename(white = B18AA) %>%
-  dplyr::rename(black = B18AB) %>%
-  dplyr::rename(native = B18AC) %>%
-  dplyr::rename(asian = B18AD) %>%
-  dplyr::rename(hispanic = A35AA) %>%
+  dplyr::rename(white = CY6AA) %>%
+  dplyr::rename(black = CY6AB) %>%
+  dplyr::rename(asian_native = CY6AC) %>%
+  dplyr::rename(other = CY6AD) %>%
+  dplyr::rename(hispanic = CY6AE) %>%
   dplyr::rename(less9thGrade = B69AA) %>%
   dplyr::rename(ninthToSomeCollege = B69AB) %>%
   dplyr::rename(unemployed = B84AF) %>%
@@ -121,8 +87,7 @@ ipums_clean <- ipums %>%
   dplyr::mutate(rural = as.numeric(rural)) %>%
   dplyr::mutate(white = as.numeric(white)) %>%
   dplyr::mutate(black = as.numeric(black)) %>%
-  dplyr::mutate(native = as.numeric(native)) %>%
-  dplyr::mutate(asian = as.numeric(asian)) %>%
+  dplyr::mutate(asian_native = as.numeric(asian_native)) %>%
   dplyr::mutate(hispanic = as.numeric(hispanic)) %>%
   dplyr::mutate(less9thGrade = as.numeric(less9thGrade)) %>%
   dplyr::mutate(ninthToSomeCollege = as.numeric(ninthToSomeCollege)) %>%
@@ -146,24 +111,22 @@ ipums_clean <- ipums %>%
   
   dplyr::mutate(noCollegeDegree = less9thGrade + ninthToSomeCollege) %>%   #constructing less than college degree 
   
-  dplyr::mutate(urban_pct = urban / population) %>% #calculating percent of county of certain demographics
-  dplyr::mutate(rural_pct = rural / population) %>%
-  dplyr::mutate(white_pct = white / population) %>%
-  dplyr::mutate(black_pct = black / population) %>%
-  dplyr::mutate(native_pct = native / population) %>%
-  dplyr::mutate(asian_pct = asian / population) %>%
-  # dplyr::mutate(two_race_pct = two_race / population) %>%
-  dplyr::mutate(hispanic_pct = hispanic / population) %>%
-  dplyr::mutate(noCollegeDegree_pct = noCollegeDegree / population) %>%
-  dplyr::mutate(unemployed_pct = unemployed / population) %>%
-  dplyr::mutate(inc_below_pov_pct = inc_below_pov / population) %>%
+  dplyr::mutate(urban_pct = urban* 100 / population) %>% #calculating percent of county of certain demographics
+  dplyr::mutate(rural_pct = rural* 100 / population) %>%
+  dplyr::mutate(white_pct = white* 100 / population) %>%
+  dplyr::mutate(black_pct = black* 100 / population) %>%
+  dplyr::mutate(asian_native_pct = asian_native* 100 / population) %>%
+  dplyr::mutate(hispanic_pct = hispanic* 100 / population) %>%
+  dplyr::mutate(noCollegeDegree_pct = noCollegeDegree* 100 / population) %>%
+  dplyr::mutate(unemployed_pct = unemployed* 100 / population) %>%
+  dplyr::mutate(inc_below_pov_pct = inc_below_pov* 100 / population) %>%
 
   dplyr::mutate(total_house = owner + renter) %>% #calculating percent of county of certain housing variable
-  dplyr::mutate(owner_pct = owner / total_house) %>%
-  dplyr::mutate(renter_pct = renter / total_house) %>%
-  dplyr::mutate(white_owner_pct = white_owner / total_house) %>%
-  dplyr::mutate(black_owner_pct = black_owner / total_house) %>%
-  dplyr::mutate(hispanic_owner_pct = hispanic_owner / total_house) 
+  dplyr::mutate(owner_pct = owner* 100 / total_house) %>%
+  dplyr::mutate(renter_pct = renter* 100 / total_house) %>%
+  dplyr::mutate(white_owner_pct = white_owner* 100 / total_house) %>%
+  dplyr::mutate(black_owner_pct = black_owner* 100 / total_house) %>%
+  dplyr::mutate(hispanic_owner_pct = hispanic_owner* 100 / total_house) 
 
 impus_nas <- ipums_clean %>%
   dplyr::summarise_all(funs(sum(is.na(.))))
@@ -235,7 +198,7 @@ myNBER_clean_2 <- myNBER %>%
 
 
 myNBER_clean <- bind_rows(myNBER_clean_1, myNBER_clean_2) %>%
-  rename(annual_population = pop)
+  dplyr::rename(annual_population = pop)
 rm(myNBER_clean_1, myNBER_clean_2, myNBER)
 
 #getting a merge year for other data
@@ -251,9 +214,9 @@ census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRU
 myACS <-  get_acs(geography = "county", variables = "B01003_001", geometry = FALSE, cache_table = TRUE, year = 2015)
 
 myACS <- myACS %>%
-  rename(fips = GEOID) %>%
-  rename(annual_population = estimate) %>%
-  mutate(year = 2015) %>%
+  dplyr::rename(fips = GEOID) %>%
+  dplyr::rename(annual_population = estimate) %>%
+  dplyr::mutate(year = 2015) %>%
   dplyr::select(fips, annual_population, year)
 
 
@@ -261,9 +224,9 @@ for (i in 2016:2018) {
   temp <-  get_acs(geography = "county", variables = "B01003_001", geometry = FALSE, cache_table = TRUE, year = i)
   
   temp <- temp %>%
-    rename(fips = GEOID) %>%
-    rename(annual_population = estimate) %>%
-    mutate(year = i) %>%
+    dplyr::rename(fips = GEOID) %>%
+    dplyr::rename(annual_population = estimate) %>%
+    dplyr::mutate(year = i) %>%
     dplyr::select(fips, annual_population, year)
   
   myACS <- bind_rows(myACS, temp)
@@ -340,161 +303,161 @@ myTest_2 <- myFinal %>%
 # ****************************************************************** # 
 
 
-# -------------- 2015 American community survey ---------------
-# Pulling in for merge year 2020 because I don't have the census info in the IPUMS dataset for any year greater than 2014
-
-# Census stuff
-census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
-# readRenviron("~/.Renviron")
-# Sys.getenv("CENSUS_API_KEY")
-
-# ACS -------
-
-v5.acs <- load_variables(2015, dataset = "acs5", cache = TRUE)
-
-# Variables from American community survey
-
-# B01003_001: population
-# ATTN: DIDN'T FIND URBAN 
-# ATTN: DIDN'T FIND RURAL
-# B02001_001: total race
-# B02001_002: white alone
-# B02001_003: black
-# B02001_004: American Indian and Alaska Native alone
-# B02001_005: Asian alone
-# B02001_006: Native Hawaiian and Other Pacific Islander alone
-# B02001_007: Some Other Race alone
-# B02001_008: Two or More Races
-# B03001_001: Total Hispanic or Latino
-# B03001_012: Hispanic or Latino
-# B15003_018: GED
-# B15003_017: Highschool diploma
-
-# B06011_001: Median income in the past 12 months
-
-# CONSTRUCTION OF POVERTY LEVEL IN 2015
-# C17002_001 -- TOTAL: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
-# C17002_002 -- Under .50: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
-# C17002_003 -- .50 to .99: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
-
-#Getting count of people of different races/ethnicities
-population <- "B01003_001"
-total_race <- "B02001_001" #population on census block
-white <- "B02001_002" #Estimate!!Total!!White alone
-black <- 	"B02001_003" #	Estimate!!Total!!Black or African American alone
-native <- "B02001_004" #	Estimate!!Total!!American Indian and Alaska Native alone
-asian <- "B02001_005" #Estimate!!Total!!Asian alone
-islander <- "B02001_006" #Estimate!!Total!!Native Hawaiian and Other Pacific Islander alone
-other <- "B02001_007" #Estimate!!Total!!Some other race alone
-two_race <- "B02001_008"
-total_hispanic <- "B03001_001"
-hispanic <- "B03002_012"
-med_income <- "B06011_001"
-pov_total <- "C17002_001"
-pov_under_.5 <- "C17002_002"
-pov_.5_.99 <- "C17002_003"
-GED <- "B15003_018"
-highschool <- "B15003_017"
-bachelors <- "B15003_022"
-total_school <- "B15003_001"
-
-#creating list
-vars <- list(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99, GED, highschool, bachelors, total_school)
-rm(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99, GED, highschool, bachelors, total_school)
-
-#pulling data from census
-ACS <- get_acs(geography = "county", variables = vars, geometry = FALSE, cache_table = TRUE, year = 2015)
-
-#pivot data wide
-myACS <- ACS %>%
-  select(-moe) %>%
-  pivot_wider(names_from = 'variable', values_from = c('estimate')) %>%
-  distinct() %>%
-  dplyr::mutate(year = 2015) %>%
-  dplyr::rename(population = B01003_001) %>%
-  dplyr::mutate(urban = NA) %>%
-  dplyr::mutate(rural = NA) %>%
-  dplyr::select(-B02001_001) %>% #dropping total_race bc it is the same as total pop
-  dplyr::rename(white = B02001_002) %>%
-  dplyr::rename(black = B02001_003) %>%
-  dplyr::rename(native = B02001_004) %>%
-  dplyr::rename(asian = B02001_005) %>%
-  dplyr::select(-B02001_006) %>% # dropping islander bc I don't have it for earlier years
-  dplyr::select(-B02001_007) %>%# dropping other bc I don't have it for earlier years
-  dplyr::rename(two_race = B02001_008) %>%
-  dplyr::select(-B03001_001) %>% #dropping total_hispanic bc it is the same as total pop
-  dplyr::rename(hispanic = B03002_012) %>%
-  dplyr::rename(med_income_house = B06011_001) %>%
-  dplyr::select(-C17002_001) %>% #dropping pov_total bc it's almost the same as total pop
-  dplyr::rename(pov_under_.5 = C17002_002) %>%
-  dplyr::rename(pov_.5_.99 = C17002_003) %>%
-  dplyr::rename(GED = B15003_018) %>%
-  dplyr::rename(highschool = B15003_017) %>%
-  dplyr::rename(bachelors = B15003_022) %>%
-  dplyr::rename(total_school = B15003_001) %>%
-  dplyr::mutate(inc_below_pov = pov_under_.5 + pov_.5_.99) %>%
-  dplyr::select(-pov_.5_.99, -pov_under_.5, -NAME) %>%
-  dplyr::mutate(population = as.numeric(population)) %>% #getting variable as numbers 
-  dplyr::mutate(urban = as.numeric(urban)) %>%
-  dplyr::mutate(rural = as.numeric(rural)) %>%
-  dplyr::mutate(white = as.numeric(white)) %>%
-  dplyr::mutate(black = as.numeric(black)) %>%
-  dplyr::mutate(native = as.numeric(native)) %>%
-  dplyr::mutate(asian = as.numeric(asian)) %>%
-  dplyr::mutate(two_race = as.numeric(two_race)) %>%
-  dplyr::mutate(hispanic = as.numeric(hispanic)) %>%
-  dplyr::mutate(med_income_house = as.numeric(med_income_house)) %>%
-  dplyr::mutate(inc_below_pov = as.numeric(inc_below_pov)) %>%
-  dplyr::mutate(highschool = as.numeric(highschool)) %>%
-  dplyr::mutate(GED = as.numeric(GED)) %>%
-  dplyr::mutate(bachelors = as.numeric(bachelors)) %>%
-  dplyr::mutate(total_school = as.numeric(total_school)) %>%
-  dplyr::mutate(urban_pct = urban / population) %>% #calculating percent of county of certain demographics
-  dplyr::mutate(rural_pct = rural / population) %>%
-  dplyr::mutate(white_pct = white / population) %>%
-  dplyr::mutate(black_pct = black / population) %>%
-  dplyr::mutate(native_pct = native / population) %>%
-  dplyr::mutate(asian_pct = asian / population) %>%
-  dplyr::mutate(two_race_pct = two_race / population) %>%
-  dplyr::mutate(hispanic_pct = hispanic / population) %>%
-  dplyr::mutate(inc_below_pov_pct = inc_below_pov / population) %>%
-  dplyr::mutate(GED_pct = GED / population) %>%
-  dplyr::mutate(highschool_pct = highschool / population) %>%
-  dplyr::mutate(noCollegeDegree_pct = (total_school - bachelors) / total_school)
-    
-    
-
-
-# -------------- Merging ACS with LWCF and IPUMS for years 2015 and above ---------------
-
-not_all_na <- function(x) any(!is.na(x)) # function to check a whole column to see if it's NA
-
-myWorking_20 <- myWorking %>%
-  filter(merge_year == 2020) %>%
-  mutate(merge_year = 2015) %>%
-  select(where(not_all_na)) # function to check a whole column to see if it's NA 
-
-myWorking_20 <- left_join(myWorking_20, myACS, by = c("county_fips" = "GEOID", "merge_year" = "year"))
-
-
-# recombining with all years 
-
-myWorking_sub_20 <- myWorking %>%
-  filter(merge_year != 2020) %>%
-  mutate(merge_year = as.numeric(merge_year))
-
-myWorking <- bind_rows(myWorking_sub_20, myWorking_20)
-
-
-# Saving to clean data set
-vroom_write(myWorking, "Datasets/clean_data/lwcf_tws_projects_IPUMS&ACS.csv")
-
-
-# ------- combining LWCF with ACS only ------- #
-
-myWorking_acsOnly <- left_join(myLWCF, myACS, by = c("county_fips" = "GEOID"))
-vroom_write(myWorking_acsOnly, "Datasets/clean_data/lwcf_tws_projects_onlyACS.csv")
-
+# # -------------- 2015 American community survey ---------------
+# # Pulling in for merge year 2020 because I don't have the census info in the IPUMS dataset for any year greater than 2014
+# 
+# # Census stuff
+# census_api_key(key = 'b5fdd956635e498b0cc3288ebf9dfc802abbc93a', overwrite = TRUE, install = TRUE)
+# # readRenviron("~/.Renviron")
+# # Sys.getenv("CENSUS_API_KEY")
+# 
+# # ACS -------
+# 
+# v5.acs <- load_variables(2015, dataset = "acs5", cache = TRUE)
+# 
+# # Variables from American community survey
+# 
+# # B01003_001: population
+# # ATTN: DIDN'T FIND URBAN 
+# # ATTN: DIDN'T FIND RURAL
+# # B02001_001: total race
+# # B02001_002: white alone
+# # B02001_003: black
+# # B02001_004: American Indian and Alaska Native alone
+# # B02001_005: Asian alone
+# # B02001_006: Native Hawaiian and Other Pacific Islander alone
+# # B02001_007: Some Other Race alone
+# # B02001_008: Two or More Races
+# # B03001_001: Total Hispanic or Latino
+# # B03001_012: Hispanic or Latino
+# # B15003_018: GED
+# # B15003_017: Highschool diploma
+# 
+# # B06011_001: Median income in the past 12 months
+# 
+# # CONSTRUCTION OF POVERTY LEVEL IN 2015
+# # C17002_001 -- TOTAL: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
+# # C17002_002 -- Under .50: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
+# # C17002_003 -- .50 to .99: RATIO OF INCOME TO POVERTY LEVEL IN THE PAST 12 MONTHS
+# 
+# #Getting count of people of different races/ethnicities
+# population <- "B01003_001"
+# total_race <- "B02001_001" #population on census block
+# white <- "B02001_002" #Estimate!!Total!!White alone
+# black <- 	"B02001_003" #	Estimate!!Total!!Black or African American alone
+# native <- "B02001_004" #	Estimate!!Total!!American Indian and Alaska Native alone
+# asian <- "B02001_005" #Estimate!!Total!!Asian alone
+# islander <- "B02001_006" #Estimate!!Total!!Native Hawaiian and Other Pacific Islander alone
+# other <- "B02001_007" #Estimate!!Total!!Some other race alone
+# two_race <- "B02001_008"
+# total_hispanic <- "B03001_001"
+# hispanic <- "B03002_012"
+# med_income <- "B06011_001"
+# pov_total <- "C17002_001"
+# pov_under_.5 <- "C17002_002"
+# pov_.5_.99 <- "C17002_003"
+# GED <- "B15003_018"
+# highschool <- "B15003_017"
+# bachelors <- "B15003_022"
+# total_school <- "B15003_001"
+# 
+# #creating list
+# vars <- list(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99, GED, highschool, bachelors, total_school)
+# rm(population, total_race, white, black, native, asian, islander, other, two_race, total_hispanic, hispanic, med_income, pov_total, pov_under_.5, pov_.5_.99, GED, highschool, bachelors, total_school)
+# 
+# #pulling data from census
+# ACS <- get_acs(geography = "county", variables = vars, geometry = FALSE, cache_table = TRUE, year = 2015)
+# 
+# #pivot data wide
+# myACS <- ACS %>%
+#   select(-moe) %>%
+#   pivot_wider(names_from = 'variable', values_from = c('estimate')) %>%
+#   distinct() %>%
+#   dplyr::mutate(year = 2015) %>%
+#   dplyr::rename(population = B01003_001) %>%
+#   dplyr::mutate(urban = NA) %>%
+#   dplyr::mutate(rural = NA) %>%
+#   dplyr::select(-B02001_001) %>% #dropping total_race bc it is the same as total pop
+#   dplyr::rename(white = B02001_002) %>%
+#   dplyr::rename(black = B02001_003) %>%
+#   dplyr::rename(native = B02001_004) %>%
+#   dplyr::rename(asian = B02001_005) %>%
+#   dplyr::select(-B02001_006) %>% # dropping islander bc I don't have it for earlier years
+#   dplyr::select(-B02001_007) %>%# dropping other bc I don't have it for earlier years
+#   dplyr::rename(two_race = B02001_008) %>%
+#   dplyr::select(-B03001_001) %>% #dropping total_hispanic bc it is the same as total pop
+#   dplyr::rename(hispanic = B03002_012) %>%
+#   dplyr::rename(med_income_house = B06011_001) %>%
+#   dplyr::select(-C17002_001) %>% #dropping pov_total bc it's almost the same as total pop
+#   dplyr::rename(pov_under_.5 = C17002_002) %>%
+#   dplyr::rename(pov_.5_.99 = C17002_003) %>%
+#   dplyr::rename(GED = B15003_018) %>%
+#   dplyr::rename(highschool = B15003_017) %>%
+#   dplyr::rename(bachelors = B15003_022) %>%
+#   dplyr::rename(total_school = B15003_001) %>%
+#   dplyr::mutate(inc_below_pov = pov_under_.5 + pov_.5_.99) %>%
+#   dplyr::select(-pov_.5_.99, -pov_under_.5, -NAME) %>%
+#   dplyr::mutate(population = as.numeric(population)) %>% #getting variable as numbers 
+#   dplyr::mutate(urban = as.numeric(urban)) %>%
+#   dplyr::mutate(rural = as.numeric(rural)) %>%
+#   dplyr::mutate(white = as.numeric(white)) %>%
+#   dplyr::mutate(black = as.numeric(black)) %>%
+#   dplyr::mutate(native = as.numeric(native)) %>%
+#   dplyr::mutate(asian = as.numeric(asian)) %>%
+#   dplyr::mutate(two_race = as.numeric(two_race)) %>%
+#   dplyr::mutate(hispanic = as.numeric(hispanic)) %>%
+#   dplyr::mutate(med_income_house = as.numeric(med_income_house)) %>%
+#   dplyr::mutate(inc_below_pov = as.numeric(inc_below_pov)) %>%
+#   dplyr::mutate(highschool = as.numeric(highschool)) %>%
+#   dplyr::mutate(GED = as.numeric(GED)) %>%
+#   dplyr::mutate(bachelors = as.numeric(bachelors)) %>%
+#   dplyr::mutate(total_school = as.numeric(total_school)) %>%
+#   dplyr::mutate(urban_pct = urban* 100 / population) %>% #calculating percent of county of certain demographics
+#   dplyr::mutate(rural_pct = rural* 100 / population) %>%
+#   dplyr::mutate(white_pct = white* 100 / population) %>%
+#   dplyr::mutate(black_pct = black* 100 / population) %>%
+#   dplyr::mutate(native_pct = native* 100 / population) %>%
+#   dplyr::mutate(asian_pct = asian* 100 / population) %>%
+#   dplyr::mutate(two_race_pct = two_race* 100 / population) %>%
+#   dplyr::mutate(hispanic_pct = hispanic* 100 / population) %>%
+#   dplyr::mutate(inc_below_pov_pct = inc_below_pov* 100 / population) %>%
+#   dplyr::mutate(GED_pct = GED* 100 / population) %>%
+#   dplyr::mutate(highschool_pct = highschool* 100 / population) %>%
+#   dplyr::mutate(noCollegeDegree_pct = (total_school - bachelors)* 100 / total_school)
+#     
+#     
+# 
+# 
+# # -------------- Merging ACS with LWCF and IPUMS for years 2015 and above ---------------
+# 
+# not_all_na <- function(x) any(!is.na(x)) # function to check a whole column to see if it's NA
+# 
+# myWorking_20 <- myWorking %>%
+#   dplyr::filter(merge_year == 2020) %>%
+#   dplyr::mutate(merge_year = 2015) %>%
+#   dplyr::select(where(not_all_na)) # function to check a whole column to see if it's NA 
+# 
+# myWorking_20 <- left_join(myWorking_20, myACS, by = c("county_fips" = "GEOID", "merge_year" = "year"))
+# 
+# 
+# # recombining with all years 
+# 
+# myWorking_sub_20 <- myWorking %>%
+#   filter(merge_year != 2020) %>%
+#   mutate(merge_year = as.numeric(merge_year))
+# 
+# myWorking <- bind_rows(myWorking_sub_20, myWorking_20)
+# 
+# 
+# # Saving to clean data set
+# vroom_write(myWorking, "Datasets/clean_data/lwcf_tws_projects_IPUMS&ACS.csv")
+# 
+# 
+# # ------- combining LWCF with ACS only ------- #
+# 
+# myWorking_acsOnly <- left_join(myLWCF, myACS, by = c("county_fips" = "GEOID"))
+# vroom_write(myWorking_acsOnly, "Datasets/clean_data/lwcf_tws_projects_onlyACS.csv")
+# 
 
 
 
