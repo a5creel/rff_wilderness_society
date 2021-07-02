@@ -32,6 +32,15 @@ library("wesanderson")
 options(scipen=99999)
 library(janitor)
 library(dplyr)
+# ---- #
+library(choroplethr)
+library(choroplethrMaps)
+library(usdata)
+library(maps)
+data(fips_codes)
+data(continental_us_states)
+# --- #
+
 
 
 myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv")
@@ -60,6 +69,7 @@ myQuants <- myWorking %>%
 
 #joining back in
 myWorking <- left_join(myWorking, myQuants, by = c("state_fips", "year"))
+rm(myQuants)
 
 #making a factor variable for the quantiles (by state and year)
 myWorking <- myWorking %>%
@@ -86,43 +96,194 @@ myLogLin <- function(x){
 
 ```{r, echo=FALSE, message=FALSE}
 
+# --- data manipulation --- #
 
+# total grants per state 
+myTotal <- myWorking %>%
+  group_by(state_fips) %>%
+  mutate(state_total = sum(got_grant)) %>%
+  select(state_fips, state_total) %>%
+  distinct()
+
+# number of grants given to first quant counties ever per state
+myOne <- myWorking %>%
+  filter(poc_quants == "1") %>%
+  group_by(state_fips) %>%
+  mutate(one_total = sum(got_grant)) %>%
+  select(state_fips, one_total) %>%
+  distinct()
+
+# number of grants given to second quant counties ever per state
+myTwo <- myWorking %>%
+  filter(poc_quants == "2") %>%
+  group_by(state_fips) %>%
+  mutate(two_total = sum(got_grant)) %>%
+  select(state_fips, two_total) %>%
+  distinct()
+
+# number of grants given to third quant counties ever per state
+myThree <- myWorking %>%
+  filter(poc_quants == "3") %>%
+  group_by(state_fips) %>%
+  mutate(three_total = sum(got_grant)) %>%
+  select(state_fips, three_total) %>%
+  distinct()
+
+# number of grants given to third quant counties ever per state
+myFour <- myWorking %>%
+  filter(poc_quants == "4") %>%
+  group_by(state_fips) %>%
+  mutate(four_total = sum(got_grant)) %>%
+  select(state_fips, four_total) %>%
+  distinct()
+
+#merge
+myPOC_mapData <- left_join(myTotal, myOne , by = "state_fips")
+myPOC_mapData <- left_join(myPOC_mapData, myTwo , by = "state_fips")
+myPOC_mapData <- left_join(myPOC_mapData, myThree , by = "state_fips")
+myPOC_mapData <- left_join(myPOC_mapData, myFour , by = "state_fips")
+rm(myTotal, myOne, myTwo, myThree, myFour)
+
+#percents 
+myPOC_mapData <- myPOC_mapData %>%
+  mutate(one_pct = round(one_total/state_total * 100, 0 )) %>%
+  mutate(two_pct = round(two_total/state_total * 100, 0 )) %>%
+  mutate(three_pct = round(three_total/state_total * 100 , 0)) %>%
+  mutate(four_pct = round(four_total/state_total * 100, 0 )) 
+
+
+#getting state name for choropleth maps 
+fips_codes <- fips_codes %>%
+  select(state_code, state_name) %>%
+  distinct()
+
+myPOC_mapData <- left_join(myPOC_mapData, fips_codes, by = c("state_fips" = "state_code")) 
+
+myPOC_mapData <- myPOC_mapData %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region))
+
+
+# exporting map to make tableau 
+vroom_write(myPOC_mapData, "Datasets/clean_data/mapPOCquants.csv", delim = ",")
+
+# --- maps --- #
+
+# First Quantile
+myOne_map <- myPOC_mapData %>%
+  select(region, one_pct) %>%
+  rename(value = one_pct) %>%
+  filter(!is.na(region))
+
+state_choropleth(myOne_map,
+  title = "% of grants given to first quantile POC counties",
+  legend = "Percent %",
+  zoom = continental_us_states) +
+  theme(text=element_text(size=20))+
+  scale_fill_brewer(palette="YlOrBr")
+
+# Second Quantile
+myTwo_map <- myPOC_mapData %>%
+  select(region, two_pct) %>%
+  rename(value = two_pct) %>%
+  filter(!is.na(region))
+
+state_choropleth(myTwo_map,
+  title = "% of grants given to second quantile POC counties",
+  legend = "Percent %",
+  zoom = continental_us_states) +
+  theme(text=element_text(size=20))+
+  scale_fill_brewer(palette="YlOrBr")
+
+
+# Third Quantile
+myThree_map <- myPOC_mapData %>%
+  select(region, three_pct) %>%
+  rename(value = three_pct) %>%
+  filter(!is.na(region))
+
+state_choropleth(myThree_map,
+  title = "% of grants given to third quantile POC counties",
+  legend = "Percent %",
+  zoom = continental_us_states) +
+  theme(text=element_text(size=20))+
+  scale_fill_brewer(palette="YlOrBr")
+
+# Four Quantile
+myFour_map <- myPOC_mapData %>%
+  select(region, four_pct) %>%
+  rename(value = four_pct) %>%
+  filter(!is.na(region))
+
+state_choropleth(myFour_map,
+  title = "% of grants given to third quantile POC counties",
+  legend = "Percent %",
+  zoom = continental_us_states) +
+  theme(text=element_text(size=20))+
+  scale_fill_brewer(palette="YlOrBr")
+
+# difference between fourth and first quantile 
+
+myDifference_map <- myPOC_mapData %>%
+  select(region, one_pct, four_pct) %>%
+  mutate(value = four_pct - one_pct) %>%
+  filter(!is.na(region))
+
+state_choropleth(myDifference_map,
+  title = "Difference in portion of grants through time (4th quant. minus 1st)",
+  legend = "Percent %",
+  zoom = continental_us_states,
+  num_colors = 7) +
+  theme(text=element_text(size=20))+
+  scale_fill_brewer(palette="PuOr") 
+
+ggsave(width = 11, height = 8, filename = "Exploratory_Output/maps/difference_POC_quants.png")
 
 
 
 ```
 
 
-# Whether or not a county gets a grant
-Zeros are back in
+
+
+
+
+<!-- # Whether or not a county gets a grant -->
+<!-- Zeros are back in -->
 
 ```{r, include = FALSE, echo=FALSE, message=FALSE}
 # Exploratory work
+# 
+# # Median income 
+# white_pct <- glm(family = "binomial", data = myWorking, formula = got_grant ~ white_pct )
+# black_pct <- glm(family = "binomial", data = myWorking, formula = got_grant ~ black_pct)
+# 
+# summary(white_pct)
+# exp(coef(white_pct))
+# 
+# summary(black_pct)
+# exp(coef(black_pct))
+# 
+# white_four <- glm(family = "binomial", data = myWorking, formula = got_grant ~ white_four )
+# black_four <- glm(family = "binomial", data = myWorking, formula = got_grant ~ black_four)
+# 
+# summary(white_four)
+# exp(coef(white_four))
+# 
+# summary(black_four)
+# exp(coef(black_four))
+# 
 
-# Median income 
-white_pct <- glm(family = "binomial", data = myWorking, formula = got_grant ~ white_pct )
-black_pct <- glm(family = "binomial", data = myWorking, formula = got_grant ~ black_pct)
 
-summary(white_pct)
-exp(coef(white_pct))
-
-summary(black_pct)
-exp(coef(black_pct))
-
-white_four <- glm(family = "binomial", data = myWorking, formula = got_grant ~ white_four )
-black_four <- glm(family = "binomial", data = myWorking, formula = got_grant ~ black_four)
-
-summary(white_four)
-exp(coef(white_four))
-
-summary(black_four)
-exp(coef(black_four))
+summary(glm(family = "binomial", data = myWorking, formula = got_grant ~ as.factor(poc_quants)))
+femlm(family = "logit", data = myWorking, fml = got_grant ~ POC_pct | state_fips)
+femlm(family = "logit", data = myWorking, fml = got_grant ~ POC_pct)
 
 
 ```
 
 
-```{r, echo=FALSE, message=FALSE}
+```{r, echo=FALSE, message=FALSE, include=FALSE}
 #Replicating UCLA
 
 myTry <- myWorking %>%
@@ -189,9 +350,9 @@ ggplot(newdata2_inc, aes(x = med_income_house, y = PredictedProb)) + geom_ribbon
 
 ```
 
-Next steps 
-* Control for income when looking at percentage of POC, because something odd is happening
-* Could also control for home ownership, education, poverty etc (going to discuss with Sims at noon)
+<!-- Next steps  -->
+<!-- * Control for income when looking at percentage of POC, because something odd is happening -->
+<!-- * Could also control for home ownership, education, poverty etc (going to discuss with Sims at noon) -->
 
 
 
