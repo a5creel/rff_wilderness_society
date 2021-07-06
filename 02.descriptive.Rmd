@@ -56,7 +56,7 @@ myWorking <- myWorking %>%
   filter(!is.na(white_pct)) %>%
   dplyr::mutate(POC_pct = 100 - white_pct)
 
-# Getting quantiles (Sims 2020) using purrr
+# Getting quantiles (Sims 2020)
 
 #Getting the quantile for each state each year! 
 myQuants <- myWorking %>%
@@ -91,12 +91,9 @@ myLogLin <- function(x){
 ```
 
 
+```{r DATA-MANIPULATION, echo=FALSE, message=FALSE}
 
-# Cloropleth Maps
-
-```{r, echo=FALSE, message=FALSE}
-
-# --- data manipulation --- #
+# --- data manipulation to get quantity of grants per quantile--- #
 
 # total grants per state 
 myTotal <- myWorking %>%
@@ -150,7 +147,23 @@ myPOC_mapData <- myPOC_mapData %>%
   mutate(two_pct = round(two_total/state_total * 100, 0 )) %>%
   mutate(three_pct = round(three_total/state_total * 100 , 0)) %>%
   mutate(four_pct = round(four_total/state_total * 100, 0 )) 
+```
 
+
+# Choropleth Maps: POC Quartiles
+
+I calculate the percentage a county's population that are people of color (POC) by taking 100 - % of people who are non-hispanic white. 
+
+I then categorize counties in four quartiles based on the % of the population that are POC. The first quartile categorizes the whitest counties and the fourth quartile categorizes the couties with the most POC. 
+
+When calculating quartiles, I group by state and decade. I group by state because the LWCF is administered at the state level, therefore managers are making **intrastate** comparisons when deciding how to allocate funds. I group by decade because the % of the population that are POC changes throughout time. Therefore, a county that had a significant number of POC in the 70s may have experienced demographic changes by the 2010s. Ideally I would group by year rather than decade, but my demographic characteristics come from the decennial census which is collected at the decage level.  
+
+
+## Percent of Grants Given to Each Quartile 
+
+I calculate the percentage of grants given to counties in the four different quartiles from 1966 until 2018. This metric is a helpful snapshot for the total quantity of grants given to the different quartiles, but ignores time trends as well as the amount of funding allocated. 
+
+```{r, echo=FALSE, message=FALSE}
 
 #getting state name for choropleth maps 
 fips_codes <- fips_codes %>%
@@ -165,7 +178,7 @@ myPOC_mapData <- myPOC_mapData %>%
 
 
 # exporting map to make tableau 
-vroom_write(myPOC_mapData, "Datasets/clean_data/mapPOCquants.csv", delim = ",")
+# vroom_write(myPOC_mapData, "Datasets/clean_data/mapPOCquants.csv", delim = ",")
 
 # --- maps --- #
 
@@ -180,7 +193,8 @@ state_choropleth(myOne_map,
   legend = "Percent %",
   zoom = continental_us_states) +
   theme(text=element_text(size=20))+
-  scale_fill_brewer(palette="YlOrBr")
+  scale_fill_brewer(palette="YlOrBr")+
+  ggtitle(label = "% of total grants given to first quantile POC counties", subtitle =  "(whitest counties)")
 
 # Second Quantile
 myTwo_map <- myPOC_mapData %>%
@@ -193,7 +207,7 @@ state_choropleth(myTwo_map,
   legend = "Percent %",
   zoom = continental_us_states) +
   theme(text=element_text(size=20))+
-  scale_fill_brewer(palette="YlOrBr")
+  scale_fill_brewer(palette="YlOrBr") 
 
 
 # Third Quantile
@@ -242,6 +256,30 @@ ggsave(width = 11, height = 8, filename = "Exploratory_Output/maps/difference_PO
 
 
 ```
+
+```{r DATA-MANIPULATION-2, echo=FALSE, message=FALSE}
+
+# --- data manipulation to get amount per person --- #
+# 1.) Group by state and POC quartile, 
+# 2.) total funding that year  
+# 3.) total number of people 
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
