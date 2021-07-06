@@ -154,16 +154,16 @@ myPOC_mapData <- myPOC_mapData %>%
 
 I calculate the percentage a county's population that are people of color (POC) by taking 100 - % of people who are non-hispanic white. 
 
-I then categorize counties in four quartiles based on the % of the population that are POC. The first quartile categorizes the whitest counties and the fourth quartile categorizes the couties with the most POC. 
+I then categorize counties into four quartiles based on the % of the population that is POC. The first quartile categorizes the whitest counties and the fourth quartile categorizes the couties with the most POC. 
 
-When calculating quartiles, I group by state and decade. I group by state because the LWCF is administered at the state level, therefore managers are making **intrastate** comparisons when deciding how to allocate funds. I group by decade because the % of the population that are POC changes throughout time. Therefore, a county that had a significant number of POC in the 70s may have experienced demographic changes by the 2010s. Ideally I would group by year rather than decade, but my demographic characteristics come from the decennial census which is collected at the decage level.  
+When calculating quartiles, I group by state and decade. I group by state because the LWCF is administered at the state level, therefore managers are making **intrastate** comparisons when deciding how to allocate funds. I group by decade because the % of the population that is POC changes through time. Therefore, a county that had a significant number of POC in the 1970s may have experienced demographic changes by the 2010s. I group at the decade level because my demographic characteristics come from the decennial census which is collected at the decade level.  
 
 
 ## Percent of Grants Given to Each Quartile 
 
-I calculate the percentage of grants given to counties in the four different quartiles from 1966 until 2018. This metric is a helpful snapshot for the total quantity of grants given to the different quartiles, but ignores time trends as well as the amount of funding allocated. 
+Four each of the four quartiles, I calculate the percentage received of the total grants given from 1966 until 2018. This metric is a helpful moment for the total quantity of grants given to the different quartiles, but ignores time trends as well as the amount of funding allocated. 
 
-```{r, echo=FALSE, message=FALSE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
 #getting state name for choropleth maps 
 fips_codes <- fips_codes %>%
@@ -189,12 +189,12 @@ myOne_map <- myPOC_mapData %>%
   filter(!is.na(region))
 
 state_choropleth(myOne_map,
-  title = "% of grants given to first quantile POC counties",
+  title = "% of grants given to first quantile of POC counties",
   legend = "Percent %",
   zoom = continental_us_states) +
-  theme(text=element_text(size=20))+
   scale_fill_brewer(palette="YlOrBr")+
-  ggtitle(label = "% of total grants given to first quantile POC counties", subtitle =  "(whitest counties)")
+  ggtitle(label = "% of total grants given to first quantile POC counties", subtitle =  "(whitest counties)") + 
+  labs(fill = "% received by 1st")
 
 # Second Quantile
 myTwo_map <- myPOC_mapData %>%
@@ -203,11 +203,11 @@ myTwo_map <- myPOC_mapData %>%
   filter(!is.na(region))
 
 state_choropleth(myTwo_map,
-  title = "% of grants given to second quantile POC counties",
+  title = "% of grants given to second quantile of POC counties",
   legend = "Percent %",
   zoom = continental_us_states) +
-  theme(text=element_text(size=20))+
-  scale_fill_brewer(palette="YlOrBr") 
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "% received by 2nd")
 
 
 # Third Quantile
@@ -217,11 +217,11 @@ myThree_map <- myPOC_mapData %>%
   filter(!is.na(region))
 
 state_choropleth(myThree_map,
-  title = "% of grants given to third quantile POC counties",
+  title = "% of grants given to third quantile of POC counties",
   legend = "Percent %",
   zoom = continental_us_states) +
-  theme(text=element_text(size=20))+
-  scale_fill_brewer(palette="YlOrBr")
+  scale_fill_brewer(palette="YlOrBr")+ 
+  labs(fill = "% received by 3rd")
 
 # Four Quantile
 myFour_map <- myPOC_mapData %>%
@@ -230,26 +230,27 @@ myFour_map <- myPOC_mapData %>%
   filter(!is.na(region))
 
 state_choropleth(myFour_map,
-  title = "% of grants given to third quantile POC counties",
+  title = "% of grants given to fourth quantile of POC counties",
   legend = "Percent %",
   zoom = continental_us_states) +
-  theme(text=element_text(size=20))+
-  scale_fill_brewer(palette="YlOrBr")
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "% received by 4th") + 
+    ggtitle(label = "% of grants given to fourth quantile of POC counties", subtitle =  "(counties with most POC)") 
 
 # difference between fourth and first quantile 
 
 myDifference_map <- myPOC_mapData %>%
   select(region, one_pct, four_pct) %>%
-  mutate(value = four_pct - one_pct) %>%
+  mutate(value = round((four_pct - one_pct)/ four_pct * 100)) %>%
   filter(!is.na(region))
 
 state_choropleth(myDifference_map,
-  title = "Difference in portion of grants through time (4th quant. minus 1st)",
+  title = "% difference in quantity grants recieved by fourth quartile and first",
   legend = "Percent %",
   zoom = continental_us_states,
   num_colors = 7) +
-  theme(text=element_text(size=20))+
-  scale_fill_brewer(palette="PuOr") 
+  scale_fill_brewer(palette="PuOr") + 
+  labs(fill = "% diff. between 4th and 1st")
 
 ggsave(width = 11, height = 8, filename = "Exploratory_Output/maps/difference_POC_quants.png")
 
@@ -257,12 +258,115 @@ ggsave(width = 11, height = 8, filename = "Exploratory_Output/maps/difference_PO
 
 ```
 
-```{r DATA-MANIPULATION-2, echo=FALSE, message=FALSE}
+## Average Grant Size per Capita
+
+I calculate the per capita amount of grant funding for each year and include years when the amount is zero. I find the average per capita amount of grant funding for each quartile. 
+
+
+```{r DATA-MANIPULATION-2, echo=FALSE, message=FALSE, warning= FALSE}
 
 # --- data manipulation to get amount per person --- #
-# 1.) Group by state and POC quartile, 
-# 2.) total funding that year  
-# 3.) total number of people 
+
+#getting region in here for the state_choropleth function
+myWorking <- left_join(myWorking, fips_codes, by = c("state_fips" = "state_code")) %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region))
+
+# calculating grant award per capita for each county each year
+myWorking <- myWorking %>%
+  mutate(amount_perCap = if_else(!is.na(amount), amount / population,  0))
+
+# -- first quartile maps -- #
+
+# First quartile 
+myPerCap_map1 <- myWorking %>%
+  filter(poc_quants == "1") %>%
+  group_by(region) %>%
+  mutate(mean_amount_perCap = mean(amount_perCap)) %>%
+  select(region, mean_amount_perCap) %>%
+  distinct() %>%
+  rename(value = mean_amount_perCap)
+  
+
+state_choropleth(myPerCap_map1,
+  title = "Average per capita grants amount given to first quantile of POC counties",
+  legend = "Average per cap. $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr")+
+  ggtitle(label = "Average per capita grants amount given to first quantile of POC counties", 
+          subtitle =  "(whitest counties)") + 
+  labs(fill = "Average per cap. $")
+
+#second quartile 
+myPerCap_map2 <- myWorking %>%
+  filter(poc_quants == "2") %>%
+  group_by(region) %>%
+  mutate(mean_amount_perCap = mean(amount_perCap)) %>%
+  select(region, mean_amount_perCap) %>%
+  distinct() %>%
+  rename(value = mean_amount_perCap)
+  
+
+state_choropleth(myPerCap_map2,
+  title = "Average per capita grants amount given to second quantile of POC counties",
+  legend = "Average per cap. $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average per cap. $")
+
+  
+#third quartile 
+myPerCap_map3 <- myWorking %>%
+  filter(poc_quants == "3") %>%
+  group_by(region) %>%
+  mutate(mean_amount_perCap = mean(amount_perCap)) %>%
+  select(region, mean_amount_perCap) %>%
+  distinct() %>%
+  rename(value = mean_amount_perCap)
+  
+
+state_choropleth(myPerCap_map3,
+  title = "Average per capita grants amount given to thrid quantile of POC counties",
+  legend = "Average per cap. $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average per cap. $")
+
+#fourth quartile 
+myPerCap_map4 <- myWorking %>%
+  filter(poc_quants == "4") %>%
+  group_by(region) %>%
+  mutate(mean_amount_perCap = mean(amount_perCap)) %>%
+  select(region, mean_amount_perCap) %>%
+  distinct() %>%
+  rename(value = mean_amount_perCap)
+  
+state_choropleth(myPerCap_map4,
+  title = "Average per capita grants amount given to fourth quantile of POC counties",
+  legend = "Average per cap. $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average per cap. $")
+
+
+# -- difference -- #
+
+
+myPerCap_difference_map <- left_join(x = myPerCap_map4, y = myPerCap_map1, by = "region") %>%
+  rename(value_4 = value.x) %>%
+  rename(value_1 = value.y) %>%
+  mutate(value = round((value_4 - value_1)/ value_4 * 100)) %>%
+  filter(!is.na(region))
+
+state_choropleth(myPerCap_difference_map,
+  title = "% difference in avg. per capita grant between fourth quartile and first",
+  legend = "% difference",
+  zoom = continental_us_states,
+  num_colors = 7) +
+  scale_fill_brewer(palette="YlOrBr", direction=-1) + 
+  labs(fill = "% diff. between 4th and 1st")
+
+ggsave(width = 11, height = 8, filename = "Exploratory_Output/maps/difference_POC_quants.png")
 
 
 
@@ -289,7 +393,7 @@ ggsave(width = 11, height = 8, filename = "Exploratory_Output/maps/difference_PO
 <!-- # Whether or not a county gets a grant -->
 <!-- Zeros are back in -->
 
-```{r, include = FALSE, echo=FALSE, message=FALSE}
+```{r, include = FALSE, echo=FALSE, message=FALSE, eval = FALSE}
 # Exploratory work
 # 
 # # Median income 
@@ -321,7 +425,7 @@ femlm(family = "logit", data = myWorking, fml = got_grant ~ POC_pct)
 ```
 
 
-```{r, echo=FALSE, message=FALSE, include=FALSE}
+```{r, echo=FALSE, message=FALSE, include=FALSE, eval = FALSE}
 #Replicating UCLA
 
 myTry <- myWorking %>%
