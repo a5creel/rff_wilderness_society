@@ -149,7 +149,7 @@ myPov_mapData <- myPov_mapData %>%
 
 I calculate the percentage of a county's population that is below the poverty line using data from the decennial census. 
 
-I then categorize counties into four quartiles based on the % of the population that is in poverty The first quartile categorizes the least imporvrished counties and the fourth quartile categorizes the counties with the most people under the poverty line. 
+I then categorize counties into four quartiles based on the % of the population that is in poverty The first quartile categorizes the least impoverished counties and the fourth quartile categorizes the counties with the most people under the poverty line. 
 
 When calculating quartiles, I group by state and decade. I group by state because the LWCF is administered at the state level, therefore managers are making **intrastate** comparisons when deciding how to allocate funds. I group by decade because the % of the population that is in poverty changes through time. Therefore, a county that had a significant number of people in poverty in the 1970s may have experienced socioeconomic changes by the 2010s. I group at the decade level because my demographic characteristics come from the decennial census which is collected at the decade level.  
 
@@ -239,11 +239,11 @@ myDifference_map <- myPov_mapData %>%
 
 state_choropleth(myDifference_map,
   title = "Difference in % grants recieved by fourth quartile and first",
-  legend = "Differnce in % recieved",
+  legend = "Difference in % recieved",
   zoom = continental_us_states,
   num_colors = 5) +
   scale_fill_brewer(palette="Purples", direction = -1) + 
-  labs(fill = "Differnce in % recieved")
+  labs(fill = "Difference in % recieved")
 
 
 ```
@@ -423,11 +423,11 @@ myDifference_map <- myPov_mapData %>%
 
 state_choropleth(myDifference_map,
   title = paste("Difference in % grants recieved by fourth quartile and first:", myStart, "-", myEnd),
-  legend = "Differnce in % recieved",
+  legend = "Difference in % recieved",
   zoom = continental_us_states,
   num_colors = 5) +
   scale_fill_brewer(palette="Purples", direction = -1) + 
-  labs(fill = "Differnce in % recieved")
+  labs(fill = "Difference in % recieved")
 
 }
 
