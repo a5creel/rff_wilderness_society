@@ -562,7 +562,7 @@ state_choropleth(myPerCap_difference_map,
 
 * On average in California, the counties in the first quartile for percentage of population that is in poverty (ie the richest counties) receive \$ 0.30 to \$0.36 of grant funding per person. 
 * On average in California, the counties in the fourth quartile for % of population that is in poverty (counties with the most poverty) receive \$ 0.00 to \$0.21 of grant funding per person. 
-* In California, counties in the fourth quartile receive \$ -0.10 - \$ 0.01 less grant funding per person than counties in the first quartile. 
+* In California, counties in the fourth quartile receive \$ -0.10 - \$ 0.01 in difference of grant funding per person than counties in the first quartile. 
 
 ## Table
 
@@ -677,3 +677,233 @@ myTime_perCap(myStart = 2008)
 I am not observing an obvious time trend for any specific regions thus far... California has a really different trend post-Reagan years and post Obama years. 
 
 ** I'm trying think of way to organize this so that I more easily observe time trends then only looking at the maps**
+
+
+# Average Grant Size (Total)
+
+I find the average amount of grant funding for each quartile and include years when the amount is zero.
+
+## Maps
+
+```{r DATA-MANIPULATION-3, echo=FALSE, message=FALSE, warning= FALSE}
+
+# --- data manipulation to get amount per person --- #
+
+# calculating grant award for each county each year
+myWorking <- myWorking %>%
+  mutate(amount= if_else(!is.na(amount), amount,  0))
+
+# -- first quartile maps -- #
+
+# First quartile 
+myAmount_map1 <- myWorking %>%
+  filter(pov_quarts == "1") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+
+state_choropleth(myAmount_map1,
+  title = "Average grants amount given to first quartile of poverty counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr")+
+  ggtitle(label = "Average grants amount given to first quartile of poverty counties", 
+          subtitle =  "(Richest counties)") + 
+  labs(fill = "Average $")
+
+#second quartile 
+myAmount_map2 <- myWorking %>%
+  filter(pov_quarts == "2") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+
+state_choropleth(myAmount_map2,
+  title = "Average grants amount given to second quartile of poverty counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average $")
+
+  
+#third quartile 
+myAmount_map3 <- myWorking %>%
+  filter(pov_quarts == "3") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+
+state_choropleth(myAmount_map3,
+  title = "Average grants amount given to thrid quartile of poverty counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average $")
+
+#fourth quartile 
+myAmount_map4 <- myWorking %>%
+  filter(pov_quarts == "4") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+state_choropleth(myAmount_map4,
+  title = "Average grants amount given to fourth quartile of poverty counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average $")
+
+
+# -- difference -- #
+
+
+myAmount_difference_map <- left_join(x = myAmount_map4, y = myAmount_map1, by = "region") %>%
+  rename(value_4 = value.x) %>%
+  rename(value_1 = value.y) %>%
+  mutate(value = value_4 - value_1) %>%
+  filter(!is.na(region))
+
+state_choropleth(myAmount_difference_map,
+  title = "Difference in avg. grant between fourth quartile and first",
+  legend = "Difference in $",
+  zoom = continental_us_states,
+  num_colors = 5) +
+  scale_fill_brewer(palette="Purples", direction = -1) + 
+  labs(fill = "Difference in $")
+
+
+
+
+```
+
+
+**Interpretation:** 
+
+* On average in Nevada, the counties in the first quartile for percentage of population that is in poverty (ie the richest counties) receive \$ 35K to \$74K of grant funding per person. 
+* On average in Nevada, the counties in the fourth quartile for % of population that is in poverty (counties with the most poverty) receive \$ 6K to \$8K of grant funding per person. 
+* In Nevada, counties in the fourth quartile receive \$ 62K - \$ 18K less grant funding per person than counties in the first quartile. 
+
+## Table
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Getting columns together 
+myAmount_table <- left_join(myAmount_map1, myAmount_map2, by = "region") %>%
+  rename(perCap_1 = value.x) %>%
+  rename(perCap_2 = value.y) 
+myAmount_table <- left_join(myAmount_table, myAmount_map3, by = "region") %>%
+  rename(perCap_3 = value) 
+myAmount_table <- left_join(myAmount_table, myAmount_map4, by = "region") %>%
+  rename(perCap_4 = value) 
+myAmount_table <- left_join(myAmount_table, myAmount_difference_map, by = "region") %>%
+  rename(perCap_diff = value) %>%
+  select(-value_4, -value_1)
+
+#get percent of poverty for the state
+state_pct_poverty <- myWorking %>%
+  select(region, inc_below_pov_pct) %>%
+  distinct() %>%
+  group_by(region) %>%
+  mutate(avg_inc_below_pov_pct = mean(inc_below_pov_pct)) %>%
+  select(region, avg_inc_below_pov_pct) %>%
+  distinct()
+
+#rounding two digets for all columns
+myAmount_table <- left_join(myAmount_table, state_pct_poverty, by = "region") %>%
+  mutate(across(where(is.numeric), round, 2)) %>%
+  filter(region != "district of columbia") %>%
+  filter(region != "puerto rico") 
+
+myAmount_table %>%
+  arrange(-avg_inc_below_pov_pct) %>%
+  mutate(region = str_to_title(region)) %>%
+  kbl(booktabs = T, 
+      caption = "Avg. grant ($)",
+      col.names = c("State",
+                    "First",
+                    "Second", 
+                    "Third",
+                    "Fourth",
+                    "Difference (four minus first)", 
+                    "Avg % of county that's in poverty")) %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# Plot of avg % poverty in state and difference between quarts 
+ggplot(myAmount_table, aes(x=avg_inc_below_pov_pct, y=perCap_diff)) + geom_point() + geom_smooth(method = "lm") +theme_bw() + 
+  xlab("Avg. % of people in poverty per County") +
+  ylab("Difference in fouth and first quartile") + ggtitle("Avg. spending")
+
+```
+
+When looking at the difference in the avg. funding received, there is a *very* slight downward trend with a counties' population that is in poverty. 
+
+
+## Time Differences: total grant award ($)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+myTime_amount <- function(myStart = 1965, myEnd = 2018){
+myWorking <- myWorking %>%
+    dplyr::filter(year >= myStart) %>%
+    dplyr::filter(year < myEnd)
+  
+# First quartile 
+myAmount_map1 <- myWorking %>%
+  filter(pov_quarts == "1") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+
+# Fourth quartile 
+myAmount_map4 <- myWorking %>%
+  filter(pov_quarts == "4") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+
+# -- difference -- #
+myAmount_difference_map <- left_join(x = myAmount_map4, y = myAmount_map1, by = "region") %>%
+  rename(value_4 = value.x) %>%
+  rename(value_1 = value.y) %>%
+  mutate(value = value_4 - value_1) %>%
+  filter(!is.na(region))
+
+
+state_choropleth(myAmount_difference_map,
+  title = paste("Difference in avg. grant between fourth quartile and first", myStart, "-", myEnd),
+  legend = "Difference in $",
+  zoom = continental_us_states,
+  num_colors = 5) +
+  scale_fill_brewer(palette="Purples", direction = -1) + 
+  labs(fill = "Difference in $")
+
+
+}
+
+myTime_amount()
+myTime_amount(myEnd = 1981)
+myTime_amount(myStart = 1981, myEnd = 2008)
+myTime_amount(myStart = 2008)
+
+
+```
+
+At first glance, it looks like the post-obama years seem to be making this trend less severe in certain states. 
+

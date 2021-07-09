@@ -687,3 +687,237 @@ myTime_perCap(myStart = 2008)
 
 The difference in per capita spending for whiter counties and counties with more POC has gotten smaller over time, trending in a more equitable direction. 
 
+
+
+
+# Average Grant Size (total grant)
+
+I find the average total amount of grant funding for each quartile and include zeros. 
+
+## Maps
+
+```{r DATA-MANIPULATION-3, echo=FALSE, message=FALSE, warning= FALSE}
+
+# --- data manipulation to get amount per person --- #
+
+# calculating grant award for each county each year
+myWorking <- myWorking %>%
+  mutate(amount= if_else(!is.na(amount), amount,  0))
+
+# -- first quartile maps -- #
+
+# First quartile 
+myAmount_map1 <- myWorking %>%
+  filter(poc_quants == "1") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+
+state_choropleth(myAmount_map1,
+  title = "Average grants amount given to first quartile of POC counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr")+
+  ggtitle(label = "Average grants amount given to first quartile of POC counties", 
+          subtitle =  "(whitest counties)") + 
+  labs(fill = "Average $")
+
+#second quartile 
+myAmount_map2 <- myWorking %>%
+  filter(poc_quants == "2") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+
+state_choropleth(myAmount_map2,
+  title = "Average grants amount given to second quartile of POC counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average $")
+
+  
+#third quartile 
+myAmount_map3 <- myWorking %>%
+  filter(poc_quants == "3") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+
+state_choropleth(myAmount_map3,
+  title = "Average grants amount given to thrid quartile of POC counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average $")
+
+#fourth quartile 
+myAmount_map4 <- myWorking %>%
+  filter(poc_quants == "4") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+  
+state_choropleth(myAmount_map4,
+  title = "Average grants amount given to fourth quartile of POC counties",
+  legend = "Average $",
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr") + 
+  labs(fill = "Average $")
+
+
+# -- difference -- #
+
+
+myAmount_difference_map <- left_join(x = myAmount_map4, y = myAmount_map1, by = "region") %>%
+  rename(value_4 = value.x) %>%
+  rename(value_1 = value.y) %>%
+  mutate(value = value_4 - value_1) %>%
+  filter(!is.na(region))
+
+state_choropleth(myAmount_difference_map,
+  title = "Difference in avg. grant between fourth quartile and first",
+  legend = "Difference in $",
+  zoom = continental_us_states,
+  num_colors = 7) +
+  scale_fill_brewer(palette="PuOr", direction = -1) + 
+  labs(fill = "Difference in $")
+
+
+
+
+```
+
+
+**Interpretation:** 
+
+* On average in Louisiana, the counties in the first quartile for percentage of population that is people of color (ie the whitest counties) receive \$ 13,044 to \$18,825 of grant funding per person. 
+* On average in Louisiana, the counties in the fourth quartile for % of population that is people of color (counties with the most POC) receive \$ 8,225 to \$11,338 of grant funding per person. 
+* In Louisiana, counties in the fourth quartile receive \$ 103,929 - \$ 5,864 less grant funding per person than counties in the first quartile. 
+
+## Table
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# Getting columns together 
+myAmount_table <- left_join(myAmount_map1, myAmount_map2, by = "region") %>%
+  rename(perCap_1 = value.x) %>%
+  rename(perCap_2 = value.y) 
+myAmount_table <- left_join(myAmount_table, myAmount_map3, by = "region") %>%
+  rename(perCap_3 = value) 
+myAmount_table <- left_join(myAmount_table, myAmount_map4, by = "region") %>%
+  rename(perCap_4 = value) 
+myAmount_table <- left_join(myAmount_table, myAmount_difference_map, by = "region") %>%
+  rename(perCap_diff = value) %>%
+  select(-value_4, -value_1)
+
+#get percent of POC for the state
+state_pct_POC <- myWorking %>%
+  select(region, POC_pct) %>%
+  distinct() %>%
+  group_by(region) %>%
+  mutate(avg_POC_pct = mean(POC_pct)) %>%
+  select(region, avg_POC_pct) %>%
+  distinct()
+
+#rounding two digets for all columns
+myAmount_table <- left_join(myAmount_table, state_pct_POC, by = "region") %>%
+  mutate(across(where(is.numeric), round, 2)) %>%
+  filter(region != "district of columbia") %>%
+  filter(region != "puerto rico") 
+
+myAmount_table %>%
+  arrange(-avg_POC_pct) %>%
+  mutate(region = str_to_title(region)) %>%
+  kbl(booktabs = T, 
+      caption = "Avg. grant ($)",
+      col.names = c("State",
+                    "First",
+                    "Second", 
+                    "Third",
+                    "Fourth",
+                    "Difference (four minus first)", 
+                    "Avg % of county that's POC")) %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+# Plot of avg % POC in state and difference between quants 
+ggplot(myAmount_table, aes(x=avg_POC_pct, y=perCap_diff)) + geom_point() + geom_smooth(method = "lm") +theme_bw() + 
+  xlab("Avg. % of POC per County") +
+  ylab("Difference in fouth and first quartile") + ggtitle("Avg. spending")
+
+```
+
+When looking at the difference in the avg. funding received, there is an obvious downward trend with a counties' population that is POC. 
+
+
+## Time Differences: Per captia grant award ($)
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+myTime_amount <- function(myStart = 1965, myEnd = 2018){
+myWorking <- myWorking %>%
+    dplyr::filter(year >= myStart) %>%
+    dplyr::filter(year < myEnd)
+  
+# First quartile 
+myAmount_map1 <- myWorking %>%
+  filter(poc_quants == "1") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+
+# Fourth quartile 
+myAmount_map4 <- myWorking %>%
+  filter(poc_quants == "4") %>%
+  group_by(region) %>%
+  mutate(mean_amount = mean(amount)) %>%
+  select(region, mean_amount) %>%
+  distinct() %>%
+  rename(value = mean_amount)
+
+# -- difference -- #
+myAmount_difference_map <- left_join(x = myAmount_map4, y = myAmount_map1, by = "region") %>%
+  rename(value_4 = value.x) %>%
+  rename(value_1 = value.y) %>%
+  mutate(value = value_4 - value_1) %>%
+  filter(!is.na(region))
+
+
+state_choropleth(myAmount_difference_map,
+  title = paste("Difference in avg. grant between fourth quartile and first", myStart, "-", myEnd),
+  legend = "Difference in $",
+  zoom = continental_us_states,
+  num_colors = 7) +
+  scale_fill_brewer(palette="PuOr", direction = -1) + 
+  labs(fill = "Difference in $")
+
+
+}
+
+myTime_amount()
+myTime_amount(myEnd = 1981)
+myTime_amount(myStart = 1981, myEnd = 2008)
+myTime_amount(myStart = 2008)
+
+
+```
+
+The difference in spending for whiter counties and counties with more POC is consistently observable in the south.
+
+
+
+
