@@ -1,0 +1,607 @@
+---
+title: "Quartiles of Grants Described"
+author: "Andie Creel"
+date: "7/13/2021"
+output: 
+  pdf_document:
+    number_sections: true
+    extra_dependencies: ["float"]
+
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/descriptive/grant_quarts.pdf')) })
+---
+
+**Active years: 1975-2018 because the non-hispanic white characteristic is not available prior to 1980**
+
+
+I get quartiles for the quantity of grants received after grouping by state and decade. I categorize a county with a "1" if the county receives the fewest number of grants. I categorize a county with a "4" if it receives the most amount of grants. Below, I look at the average percent of the population that is a certain demographic characteristic (ie white, people of color, below poverty line, etc) and see if there are trends in the percentage of certain demographic characteristics between the counties that get categorized with a 1 versus a 4. I do this averaging across all states and then do it again after dropping states whose counties' average population contains less than 10% POC (because they may be so homogeneous that they damped any true trends across quartiles that exist in more diverse states).
+
+
+I repeat this process for the amount of funding received and the amount of funding received per capita. 
+
+
+
+```{r, include=FALSE}
+#R Markdown stuff
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+options(tinytex.verbose = TRUE)
+```
+
+```{r setup, include=FALSE}
+library(vroom)
+library(tidyr)
+library(stringr)
+library(usmap)
+library(tidycensus)
+library(ggplot2)
+library(fixest)
+library(kableExtra)
+library(gtools)
+library(forcats)
+library("wesanderson")
+options(scipen=99999)
+library(janitor)
+library(dplyr)
+# ---- #
+library(choroplethr)
+library(choroplethrMaps)
+library(usdata)
+library(maps)
+data(fips_codes)
+data(continental_us_states)
+# --- #
+
+myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv")
+
+# additional data cleaning ------------
+
+# Removing counties whose FIPSs code I didn't identify and don't have demo data for (1975-2018)
+myWorking <- myWorking %>%
+  filter(!is.na(fips)) %>%
+  distinct() %>%
+  mutate(type = as.factor(type)) %>%
+  mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>%
+  filter(!is.na(white_pct)) %>%
+  dplyr::mutate(poc_pct = 100 - white_pct)
+
+# Grouping outcome variables by decade (number of grants received, amount received, average amount received per capita)
+myWorking_decade <- myWorking %>%
+  group_by(fips, merge_year) %>%
+  mutate(decade_grants = sum(got_grant)) %>%
+  mutate(decade_amount = sum(amount, na.rm = TRUE)) %>%
+  mutate(decade_avg_per_cap_amount = mean(amount/annual_population, na.rm = TRUE)) %>%
+  select(state_fips, ends_with("_pct"), starts_with("decade_")) %>%
+  ungroup() %>%
+  distinct()
+
+#getting average POC per county
+state_pct_POC <- myWorking_decade %>%
+  select(state_fips, poc_pct) %>%
+  distinct() %>%
+  group_by(state_fips) %>%
+  mutate(avg_poc_pct = mean(poc_pct)) %>%
+  select(state_fips, avg_poc_pct) %>%
+  distinct()
+
+myWorking_decade <- left_join(myWorking_decade, state_pct_POC, by = "state_fips" )
+
+# ------- Get quartiles of grants received for each decade ------- #
+myQuants <- myWorking_decade %>%
+  dplyr::group_by(state_fips, merge_year) %>%
+  dplyr::summarise(quants = list(quantile(decade_grants, probs = c(.25, .5, .75)))) %>%
+  unnest_wider(quants) %>%
+  dplyr::rename(decade_grants_25 = `25%`) %>%
+  dplyr::rename(decade_grants_50 = `50%`) %>%
+  dplyr::rename(decade_grants_75 = `75%`)
+
+#joining back in
+myWorking_decade <- left_join(myWorking_decade, myQuants, by = c("state_fips", "merge_year"))
+rm(myQuants)
+
+#making a factor variable for the quartiles (by state and year)
+myWorking_decade <- myWorking_decade %>%
+  dplyr::mutate(decade_grants_quants = if_else(decade_grants > decade_grants_75, "4", "")) %>% # fourth quartile 
+  dplyr::mutate(decade_grants_quants = if_else(decade_grants <=decade_grants_75, "3", decade_grants_quants)) %>% # third quartile
+  dplyr::mutate(decade_grants_quants = if_else(decade_grants <= decade_grants_50, "2", decade_grants_quants)) %>% # second quartile
+  dplyr::mutate(decade_grants_quants = if_else(decade_grants <= decade_grants_25, "1", decade_grants_quants)) %>% # first quartile 
+  dplyr::select(-decade_grants_75, -decade_grants_50, - decade_grants_25) %>%
+  dplyr::mutate(decade_grants = as.factor(decade_grants_quants))
+
+# ------- Get quartiles of amount of grant funding for each decade ------- #
+myQuants <- myWorking_decade %>%
+  dplyr::group_by(state_fips, merge_year) %>%
+  dplyr::summarise(quants = list(quantile(decade_amount, probs = c(.25, .5, .75)))) %>%
+  unnest_wider(quants) %>%
+  dplyr::rename(decade_amount_25 = `25%`) %>%
+  dplyr::rename(decade_amount_50 = `50%`) %>%
+  dplyr::rename(decade_amount_75 = `75%`)
+
+#joining back in
+myWorking_decade <- left_join(myWorking_decade, myQuants, by = c("state_fips", "merge_year"))
+rm(myQuants)
+
+#making a factor variable for the quartiles (by state and year)
+myWorking_decade <- myWorking_decade %>%
+  dplyr::mutate(decade_amount_quants = if_else(decade_amount > decade_amount_75, "4", "")) %>% # fourth quartile 
+  dplyr::mutate(decade_amount_quants = if_else(decade_amount <=decade_amount_75, "3", decade_amount_quants)) %>% # third quartile
+  dplyr::mutate(decade_amount_quants = if_else(decade_amount <= decade_amount_50, "2", decade_amount_quants)) %>% # second quartile
+  dplyr::mutate(decade_amount_quants = if_else(decade_amount <= decade_amount_25, "1", decade_amount_quants)) %>% # first quartile 
+  dplyr::select(-decade_amount_75, -decade_amount_50, - decade_amount_25) %>%
+  dplyr::mutate(decade_amount = as.factor(decade_amount_quants))
+
+# ------- Get quartiles of amount of grant funding PER CAPITA for each decade ------- #
+myQuants <- myWorking_decade %>%
+  dplyr::group_by(state_fips, merge_year) %>%
+  dplyr::summarise(quants = list(quantile(decade_avg_per_cap_amount, probs = c(.25, .5, .75), na.rm = TRUE))) %>%
+  unnest_wider(quants) %>%
+  dplyr::rename(decade_avg_per_cap_amount_25 = `25%`) %>%
+  dplyr::rename(decade_avg_per_cap_amount_50 = `50%`) %>%
+  dplyr::rename(decade_avg_per_cap_amount_75 = `75%`)
+
+#joining back in
+myWorking_decade <- left_join(myWorking_decade, myQuants, by = c("state_fips", "merge_year"))
+rm(myQuants)
+
+#making a factor variable for the quartiles (by state and year)
+myWorking_decade <- myWorking_decade %>%
+  dplyr::mutate(decade_avg_per_cap_amount_quants = if_else(decade_avg_per_cap_amount > decade_avg_per_cap_amount_75, "4", "")) %>% # fourth quartile 
+  dplyr::mutate(decade_avg_per_cap_amount_quants = if_else(decade_avg_per_cap_amount <=decade_avg_per_cap_amount_75, "3", decade_avg_per_cap_amount_quants)) %>% # third quartile
+  dplyr::mutate(decade_avg_per_cap_amount_quants = if_else(decade_avg_per_cap_amount <= decade_avg_per_cap_amount_50, "2", decade_avg_per_cap_amount_quants)) %>% # second quartile
+  dplyr::mutate(decade_avg_per_cap_amount_quants = if_else(decade_avg_per_cap_amount <= decade_avg_per_cap_amount_25, "1", decade_avg_per_cap_amount_quants)) %>% # first quartile 
+  dplyr::select(-decade_avg_per_cap_amount_75, -decade_avg_per_cap_amount_50, - decade_avg_per_cap_amount_25) %>%
+  dplyr::mutate(decade_avg_per_cap_amount = as.factor(decade_avg_per_cap_amount_quants))
+
+```
+
+# Bar Chart of Quantity of Grants Recieved 
+Looking at the number of grants received (1 being least and 4 being the most)
+
+## All States
+
+```{r, echo=FALSE, message=FALSE}
+# --- CREATING A DF TO MAKE SOME BAR PLOTS FROM --- #
+
+# urban
+myBar_df <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(urban = mean(urban_pct))
+
+# rural 
+temp <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(rural = mean(rural_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_grants_quants")
+
+# white 
+temp <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(white = mean(white_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_grants_quants")
+
+# black 
+temp <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(black = mean(black_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_grants_quants")
+
+# poc 
+temp <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(poc = mean(poc_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_grants_quants")
+
+# no college degree 
+temp <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(noCollegeDegree = mean(noCollegeDegree_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_grants_quants")
+
+# unemployment
+temp <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(unemployed = mean(unemployed_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_grants_quants")
+
+# income below poverty 
+temp <- myWorking_decade %>%
+  group_by(decade_grants_quants) %>%
+  summarise(inc_below_pov = mean(inc_below_pov_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_grants_quants")
+
+
+# --- pivoting DF wider for bar chart --- #
+
+myBar_df_long <- pivot_longer(myBar_df, !decade_grants_quants, names_to = "characteristic", values_to = "mean")
+
+ggplot(myBar_df_long, aes(x = decade_grants_quants, y = mean, group = characteristic)) +
+  geom_line(aes(color=characteristic)) +   geom_point(aes(color=characteristic)) +
+  theme_minimal() +
+  ggtitle("Trends in Quantity of grants recieved: All states included", subtitle = "1 = least # of grants, 4 = most") + 
+  ylab("Avg. % of county that is a characteristic") + xlab("Catagorization of quantity of grants") +
+  scale_fill_brewer(palette="Set2") 
+
+```
+
+## Filtering out states with few POC
+Filtering out any states whose avg county has less than 10% POC
+
+```{r, echo=FALSE, message=FALSE}
+# --- FILTERING STATES THAT DON'T HAVE AVG OF 10% POC IN COUNTIES --- #
+
+# urban
+myBar_filt_df <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(urban = mean(urban_pct))
+
+# rural 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(rural = mean(rural_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_grants_quants")
+
+# white 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(white = mean(white_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_grants_quants")
+
+# black 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(black = mean(black_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_grants_quants")
+
+# poc 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(poc = mean(poc_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_grants_quants")
+
+# no college degree 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(noCollegeDegree = mean(noCollegeDegree_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_grants_quants")
+
+# unemployment
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(unemployed = mean(unemployed_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_grants_quants")
+
+# income below poverty 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_grants_quants) %>%
+  summarise(inc_below_pov = mean(inc_below_pov_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_grants_quants")
+
+
+# --- pivoting DF wider for bar chart --- #
+
+myBar_filt_df_long <- pivot_longer(myBar_filt_df, !decade_grants_quants, names_to = "characteristic", values_to = "mean")
+
+ggplot(myBar_filt_df_long, aes(x = decade_grants_quants, y = mean, group = characteristic)) +
+  geom_line(aes(color=characteristic)) +   geom_point(aes(color=characteristic)) +
+  theme_minimal() +
+  ggtitle("Trends in Quantity of grants recieved: Only states with sig. % of POC", subtitle = "1 = least # of grants, 4 = most") + 
+  ylab("Avg. % of county that is a characteristic") + xlab("Catagorization of quantity of grants") +
+  scale_fill_brewer(palette="Set2") 
+
+
+
+```
+
+
+# Bar Chart of Amount of Grants Funding Recieved 
+Looking at a categorization of the amount of funding (1 being least and 4 being the most)
+
+## All States
+
+```{r, echo=FALSE, message=FALSE}
+# --- CREATING A DF TO MAKE SOME BAR PLOTS FROM --- #
+myWorking_decade <- myWorking_decade %>%
+  filter(!is.na(decade_amount_quants)) # dropping NAs!
+
+# urban
+myBar_df <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(urban = mean(urban_pct))
+
+# rural 
+temp <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(rural = mean(rural_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_amount_quants")
+
+# white 
+temp <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(white = mean(white_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_amount_quants")
+
+# black 
+temp <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(black = mean(black_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_amount_quants")
+
+# poc 
+temp <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(poc = mean(poc_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_amount_quants")
+
+# no college degree 
+temp <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(noCollegeDegree = mean(noCollegeDegree_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_amount_quants")
+
+# unemployment
+temp <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(unemployed = mean(unemployed_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_amount_quants")
+
+# income below poverty 
+temp <- myWorking_decade %>%
+  group_by(decade_amount_quants) %>%
+  summarise(inc_below_pov = mean(inc_below_pov_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_amount_quants")
+
+
+# --- pivoting DF wider for bar chart --- #
+
+myBar_df_long <- pivot_longer(myBar_df, !decade_amount_quants, names_to = "characteristic", values_to = "mean")
+
+ggplot(myBar_df_long, aes(x = decade_amount_quants, y = mean, group = characteristic)) +
+  geom_line(aes(color=characteristic)) +   geom_point(aes(color=characteristic)) +
+  theme_minimal() +
+  ggtitle("Trends in amount of funding recieved: All states included", subtitle = "1 = least $ of grants, 4 = most") + 
+  ylab("Avg. % of county that is a characteristic") + xlab("Catagorization of amount of $") +
+  scale_fill_brewer(palette="Set2") 
+
+```
+
+## Filtering out states with few POC
+Filtering out any states whose avg county has less than 10% POC
+
+```{r, echo=FALSE, message=FALSE}
+# --- FILTERING STATES THAT DON'T HAVE AVG OF 10% POC IN COUNTIES --- #
+
+# urban
+myBar_filt_df <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(urban = mean(urban_pct))
+
+# rural 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(rural = mean(rural_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_amount_quants")
+
+# white 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(white = mean(white_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_amount_quants")
+
+# black 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(black = mean(black_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_amount_quants")
+
+# poc 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(poc = mean(poc_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_amount_quants")
+
+# no college degree 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(noCollegeDegree = mean(noCollegeDegree_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_amount_quants")
+
+# unemployment
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(unemployed = mean(unemployed_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_amount_quants")
+
+# income below poverty 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_amount_quants) %>%
+  summarise(inc_below_pov = mean(inc_below_pov_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_amount_quants")
+
+
+# --- pivoting DF wider for bar chart --- #
+
+myBar_filt_df_long <- pivot_longer(myBar_filt_df, !decade_amount_quants, names_to = "characteristic", values_to = "mean")
+
+ggplot(myBar_filt_df_long, aes(x = decade_amount_quants, y = mean, group = characteristic)) +
+  geom_line(aes(color=characteristic)) +   geom_point(aes(color=characteristic)) +
+  theme_minimal() +
+  ggtitle("Trends in amount of grant funding recieved: Only states with sig. % of POC", subtitle = "1 = least $ of grants, 4 = most") + 
+  ylab("Avg. % of county that is a characteristic") + xlab("Catagorization of amount of $") +
+  scale_fill_brewer(palette="Set2") 
+
+
+
+```
+
+
+
+
+# Bar Chart of Amount of Grants Per Capita Funding Recieved 
+Looking at a categorization of the amount of funding (1 being least and 4 being the most)
+
+## All States
+
+```{r, echo=FALSE, message=FALSE}
+# --- CREATING A DF TO MAKE SOME BAR PLOTS FROM --- #
+myWorking_decade <- myWorking_decade %>%
+  filter(!is.na(decade_avg_per_cap_amount_quants)) # dropping NAs!
+
+
+# urban
+myBar_df <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(urban = mean(urban_pct))
+
+# rural 
+temp <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(rural = mean(rural_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# white 
+temp <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(white = mean(white_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# black 
+temp <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(black = mean(black_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# poc 
+temp <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(poc = mean(poc_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# no college degree 
+temp <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(noCollegeDegree = mean(noCollegeDegree_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# unemployment
+temp <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(unemployed = mean(unemployed_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# income below poverty 
+temp <- myWorking_decade %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(inc_below_pov = mean(inc_below_pov_pct))
+myBar_df <- left_join(myBar_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+
+# --- pivoting DF wider for bar chart --- #
+
+myBar_df_long <- pivot_longer(myBar_df, !decade_avg_per_cap_amount_quants, names_to = "characteristic", values_to = "mean")
+
+ggplot(myBar_df_long, aes(x = decade_avg_per_cap_amount_quants, y = mean, group = characteristic)) +
+  geom_line(aes(color=characteristic)) +   geom_point(aes(color=characteristic)) +
+  theme_minimal() +
+  ggtitle("Trends in amount of funding  per capita recieved: All states included", subtitle = "1 = least $ of grants, 4 = most") + 
+  ylab("Avg. % of county that is a characteristic") + xlab("Catagorization of amount of $") +
+  scale_fill_brewer(palette="Set2") 
+
+```
+
+## Filtering out states with few POC
+Filtering out any states whose avg county has less than 10% POC
+
+```{r, echo=FALSE, message=FALSE}
+# --- FILTERING STATES THAT DON'T HAVE AVG OF 10% POC IN COUNTIES --- #
+
+
+# urban
+myBar_filt_df <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(urban = mean(urban_pct))
+
+# rural 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(rural = mean(rural_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# white 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(white = mean(white_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# black 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(black = mean(black_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# poc 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(poc = mean(poc_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# no college degree 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(noCollegeDegree = mean(noCollegeDegree_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# unemployment
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(unemployed = mean(unemployed_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+# income below poverty 
+temp <- myWorking_decade %>%
+  filter(avg_poc_pct >= 10) %>%
+  group_by(decade_avg_per_cap_amount_quants) %>%
+  summarise(inc_below_pov = mean(inc_below_pov_pct))
+myBar_filt_df <- left_join(myBar_filt_df, temp, by = "decade_avg_per_cap_amount_quants")
+
+
+# --- pivoting DF wider for bar chart --- #
+
+myBar_filt_df_long <- pivot_longer(myBar_filt_df, !decade_avg_per_cap_amount_quants, names_to = "characteristic", values_to = "mean")
+
+ggplot(myBar_filt_df_long, aes(x = decade_avg_per_cap_amount_quants, y = mean, group = characteristic)) +
+  # geom_bar(stat="identity", position=position_dodge()) +
+  geom_line(aes(color=characteristic)) +
+  geom_point(aes(color=characteristic)) +
+  theme_minimal() +
+  ggtitle("Trends in amount of grant funding per capita recieved: Only states with sig. % of POC", subtitle = "1 = least $ of grants, 4 = most") + 
+  ylab("Avg. % of county that is a characteristic") + xlab("Catagorization of amount of $") +
+  scale_fill_brewer(palette="Set2") 
+
+
+
+```
+
+
+
