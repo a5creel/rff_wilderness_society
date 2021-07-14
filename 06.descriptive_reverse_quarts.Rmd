@@ -64,12 +64,13 @@ myWorking <- myWorking %>%
   filter(!is.na(white_pct)) %>%
   dplyr::mutate(poc_pct = 100 - white_pct)
 
-# Grouping outcome variables by decade (number of grants received, amount received, average amount received per capita)
+# Grouping outcome variables by decade (number of grants received, amount received, average amount received per capita per decade, avg # grants per 100,000 people per decade)
 myWorking_decade <- myWorking %>%
   group_by(fips, merge_year) %>%
   mutate(decade_grants = sum(got_grant)) %>%
   mutate(decade_amount = sum(amount, na.rm = TRUE)) %>%
   mutate(decade_avg_per_cap_amount = mean(amount/annual_population, na.rm = TRUE)) %>%
+  mutate(decade_avg_per_cap_grants = mean(sum(got_grant)/(annual_population/100000), na.rm = TRUE)) %>%
   select(state_fips, ends_with("_pct"), starts_with("decade_")) %>%
   ungroup() %>%
   distinct()
@@ -105,7 +106,7 @@ myWorking_decade <- myWorking_decade %>%
   dplyr::mutate(decade_grants_quants = if_else(decade_grants <= decade_grants_50, "2", decade_grants_quants)) %>% # second quartile
   dplyr::mutate(decade_grants_quants = if_else(decade_grants <= decade_grants_25, "1", decade_grants_quants)) %>% # first quartile 
   dplyr::select(-decade_grants_75, -decade_grants_50, - decade_grants_25) %>%
-  dplyr::mutate(decade_grants = as.factor(decade_grants_quants))
+  dplyr::mutate(decade_grants_quants = as.factor(decade_grants_quants))
 
 # ------- Get quartiles of amount of grant funding for each decade ------- #
 myQuants <- myWorking_decade %>%
@@ -127,7 +128,7 @@ myWorking_decade <- myWorking_decade %>%
   dplyr::mutate(decade_amount_quants = if_else(decade_amount <= decade_amount_50, "2", decade_amount_quants)) %>% # second quartile
   dplyr::mutate(decade_amount_quants = if_else(decade_amount <= decade_amount_25, "1", decade_amount_quants)) %>% # first quartile 
   dplyr::select(-decade_amount_75, -decade_amount_50, - decade_amount_25) %>%
-  dplyr::mutate(decade_amount = as.factor(decade_amount_quants))
+  dplyr::mutate(decade_amount_quants = as.factor(decade_amount_quants))
 
 # ------- Get quartiles of amount of grant funding PER CAPITA for each decade ------- #
 myQuants <- myWorking_decade %>%
@@ -149,9 +150,238 @@ myWorking_decade <- myWorking_decade %>%
   dplyr::mutate(decade_avg_per_cap_amount_quants = if_else(decade_avg_per_cap_amount <= decade_avg_per_cap_amount_50, "2", decade_avg_per_cap_amount_quants)) %>% # second quartile
   dplyr::mutate(decade_avg_per_cap_amount_quants = if_else(decade_avg_per_cap_amount <= decade_avg_per_cap_amount_25, "1", decade_avg_per_cap_amount_quants)) %>% # first quartile 
   dplyr::select(-decade_avg_per_cap_amount_75, -decade_avg_per_cap_amount_50, - decade_avg_per_cap_amount_25) %>%
-  dplyr::mutate(decade_avg_per_cap_amount = as.factor(decade_avg_per_cap_amount_quants))
+  dplyr::mutate(decade_avg_per_cap_amount_quants = as.factor(decade_avg_per_cap_amount_quants))
+
+# ------- Get quartiles of number of grants  PER CAPITA for each decade ------- #
+myQuants <- myWorking_decade %>%
+  dplyr::group_by(state_fips, merge_year) %>%
+  dplyr::summarise(quants = list(quantile(decade_avg_per_cap_grants, probs = c(.25, .5, .75), na.rm = TRUE))) %>%
+  unnest_wider(quants) %>%
+  dplyr::rename(decade_avg_per_cap_grants_25 = `25%`) %>%
+  dplyr::rename(decade_avg_per_cap_grants_50 = `50%`) %>%
+  dplyr::rename(decade_avg_per_cap_grants_75 = `75%`)
+
+#joining back in
+myWorking_decade <- left_join(myWorking_decade, myQuants, by = c("state_fips", "merge_year"))
+rm(myQuants)
+
+#making a factor variable for the quartiles (by state and year)
+myWorking_decade <- myWorking_decade %>%
+  dplyr::mutate(decade_avg_per_cap_grants_quants = if_else(decade_avg_per_cap_grants > decade_avg_per_cap_grants_75, "4", "")) %>% # fourth quartile 
+  dplyr::mutate(decade_avg_per_cap_grants_quants = if_else(decade_avg_per_cap_grants <=decade_avg_per_cap_grants_75, "3", decade_avg_per_cap_grants_quants)) %>% # third quartile
+  dplyr::mutate(decade_avg_per_cap_grants_quants = if_else(decade_avg_per_cap_grants <= decade_avg_per_cap_grants_50, "2", decade_avg_per_cap_grants_quants)) %>% # second quartile
+  dplyr::mutate(decade_avg_per_cap_grants_quants = if_else(decade_avg_per_cap_grants <= decade_avg_per_cap_grants_25, "1", decade_avg_per_cap_grants_quants)) %>% # first quartile 
+  dplyr::select(-decade_avg_per_cap_grants_75, -decade_avg_per_cap_grants_50, - decade_avg_per_cap_grants_25) %>%
+  dplyr::mutate(decade_avg_per_cap_grants_quants = as.factor(decade_avg_per_cap_grants_quants))
 
 ```
+
+# Maps
+
+* Grants per capita 
+** Difference in % POC from 1st quatile (least grants per capita) and 4th quatile (most grants per capita)
+** Poverty 
+** Urban 
+
+```{r, echo=FALSE, message=FALSE}
+# QUANTITY OF GRANTS PER CAPITA
+
+# difference in % POC from 1st quart and 4th quart -------------
+
+myMap <- myWorking_decade %>%
+  select(state_fips, fips, merge_year, poc_pct, decade_avg_per_cap_grants_quants) %>%
+  pivot_wider(names_from = decade_avg_per_cap_grants_quants, values_from = c(poc_pct)) %>%
+  group_by(state_fips) %>%
+  mutate(poc_pct_4 = mean(`4`, na.rm = TRUE)) %>%
+  mutate(poc_pct_3 = mean(`3`, na.rm = TRUE)) %>%
+  mutate(poc_pct_2 = mean(`2`, na.rm = TRUE)) %>%
+  mutate(poc_pct_1 = mean(`1`, na.rm = TRUE)) %>%
+  select(state_fips, starts_with("poc_pct_")) %>%
+  distinct()
+
+#getting state name for choropleth maps 
+fips_codes <- fips_codes %>%
+  select(state_code, state_name) %>%
+  distinct()
+
+myMap <- left_join(myMap, fips_codes, by = c("state_fips" = "state_code")) %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region)) %>%
+  mutate(value = poc_pct_4 - poc_pct_1)
+
+state_choropleth(myMap,
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="PuOr")+
+  ggtitle(label = "Top quartile for # grants per capita vs the bottom quartile", subtitle =  "Difference in avg % of POC") + 
+  labs(fill = "Difference in % POC (top minus bottom)")
+
+
+# difference in % poverty from 1st quart and 4th quart -------------
+
+myMap <- myWorking_decade %>%
+  select(state_fips, fips, merge_year, inc_below_pov_pct, decade_avg_per_cap_grants_quants) %>%
+  pivot_wider(names_from = decade_avg_per_cap_grants_quants, values_from = c(inc_below_pov_pct)) %>%
+  group_by(state_fips) %>%
+  mutate(inc_below_pov_pct_4 = mean(`4`, na.rm = TRUE)) %>%
+  mutate(inc_below_pov_pct_3 = mean(`3`, na.rm = TRUE)) %>%
+  mutate(inc_below_pov_pct_2 = mean(`2`, na.rm = TRUE)) %>%
+  mutate(inc_below_pov_pct_1 = mean(`1`, na.rm = TRUE)) %>%
+  select(state_fips, starts_with("inc_below_pov_pct_")) %>%
+  distinct()
+
+#getting state name for choropleth maps 
+fips_codes <- fips_codes %>%
+  select(state_code, state_name) %>%
+  distinct()
+
+myMap <- left_join(myMap, fips_codes, by = c("state_fips" = "state_code")) %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region)) %>%
+  mutate(value = inc_below_pov_pct_4 - inc_below_pov_pct_1)
+
+state_choropleth(myMap,
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="PuOr")+
+  ggtitle(label = "Top quartile for # grants per capita vs the bottom quartile", subtitle =  "Difference in avg % in poverty") + 
+  labs(fill = "Difference in % poverty (top minus bottom)")
+
+
+# difference in % urban from 1st quart and 4th quart -------------
+
+myMap <- myWorking_decade %>%
+  select(state_fips, fips, merge_year, rural_pct, decade_avg_per_cap_grants_quants) %>%
+  pivot_wider(names_from = decade_avg_per_cap_grants_quants, values_from = c(rural_pct)) %>%
+  group_by(state_fips) %>%
+  mutate(rural_pct_4 = mean(`4`, na.rm = TRUE)) %>%
+  mutate(rural_pct_3 = mean(`3`, na.rm = TRUE)) %>%
+  mutate(rural_pct_2 = mean(`2`, na.rm = TRUE)) %>%
+  mutate(rural_pct_1 = mean(`1`, na.rm = TRUE)) %>%
+  select(state_fips, starts_with("rural_pct_")) %>%
+  distinct()
+
+#getting state name for choropleth maps 
+fips_codes <- fips_codes %>%
+  select(state_code, state_name) %>%
+  distinct()
+
+myMap <- left_join(myMap, fips_codes, by = c("state_fips" = "state_code")) %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region)) %>%
+  mutate(value = rural_pct_4 - rural_pct_1)
+
+state_choropleth(myMap,
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="PuOr")+
+  ggtitle(label = "Top quartile for # grants per capita vs the bottom quartile", subtitle =  "Difference in avg % rural") + 
+  labs(fill = "Difference in % rural (top minus bottom)")
+
+
+```
+
+
+
+* Amount of funding per capita 
+** Difference in % POC from 1st quatile (least grants per capita) and 4th quatile (most grants per capita)
+** Poverty 
+** Urban 
+
+```{r, echo=FALSE, message=FALSE}
+# QUANTITY OF GRANTS PER CAPITA
+
+# difference in % POC from 1st quart and 4th quart -------------
+
+myMap <- myWorking_decade %>%
+  select(state_fips, fips, merge_year, poc_pct, decade_avg_per_cap_amount_quants) %>%
+  pivot_wider(names_from = decade_avg_per_cap_amount_quants, values_from = c(poc_pct)) %>%
+  group_by(state_fips) %>%
+  mutate(poc_pct_4 = mean(`4`, na.rm = TRUE)) %>%
+  mutate(poc_pct_3 = mean(`3`, na.rm = TRUE)) %>%
+  mutate(poc_pct_2 = mean(`2`, na.rm = TRUE)) %>%
+  mutate(poc_pct_1 = mean(`1`, na.rm = TRUE)) %>%
+  select(state_fips, starts_with("poc_pct_")) %>%
+  distinct()
+
+#getting state name for choropleth maps 
+fips_codes <- fips_codes %>%
+  select(state_code, state_name) %>%
+  distinct()
+
+myMap <- left_join(myMap, fips_codes, by = c("state_fips" = "state_code")) %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region)) %>%
+  mutate(value = poc_pct_4 - poc_pct_1)
+
+state_choropleth(myMap,
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="YlOrBr", direction = -1)+
+  ggtitle(label = "Top quartile for amount of funding per capita vs the bottom quartile", subtitle =  "Difference in avg % of POC") + 
+  labs(fill = "Difference in % POC (top minus bottom)")
+
+
+# difference in % poverty from 1st quart and 4th quart -------------
+
+myMap <- myWorking_decade %>%
+  select(state_fips, fips, merge_year, inc_below_pov_pct, decade_avg_per_cap_amount_quants) %>%
+  pivot_wider(names_from = decade_avg_per_cap_amount_quants, values_from = c(inc_below_pov_pct)) %>%
+  group_by(state_fips) %>%
+  mutate(inc_below_pov_pct_4 = mean(`4`, na.rm = TRUE)) %>%
+  mutate(inc_below_pov_pct_3 = mean(`3`, na.rm = TRUE)) %>%
+  mutate(inc_below_pov_pct_2 = mean(`2`, na.rm = TRUE)) %>%
+  mutate(inc_below_pov_pct_1 = mean(`1`, na.rm = TRUE)) %>%
+  select(state_fips, starts_with("inc_below_pov_pct_")) %>%
+  distinct()
+
+#getting state name for choropleth maps 
+fips_codes <- fips_codes %>%
+  select(state_code, state_name) %>%
+  distinct()
+
+myMap <- left_join(myMap, fips_codes, by = c("state_fips" = "state_code")) %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region)) %>%
+  mutate(value = inc_below_pov_pct_4 - inc_below_pov_pct_1)
+
+state_choropleth(myMap,
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="PuOr", direction = -1)+
+  ggtitle(label = "Top quartile for amount of funding per capita vs the bottom quartile", subtitle =  "Difference in avg % in poverty") + 
+  labs(fill = "Difference in % poverty (top minus bottom)")
+
+
+# difference in % urban from 1st quart and 4th quart -------------
+
+myMap <- myWorking_decade %>%
+  select(state_fips, fips, merge_year, rural_pct, decade_avg_per_cap_amount_quants) %>%
+  pivot_wider(names_from = decade_avg_per_cap_amount_quants, values_from = c(rural_pct)) %>%
+  group_by(state_fips) %>%
+  mutate(rural_pct_4 = mean(`4`, na.rm = TRUE)) %>%
+  mutate(rural_pct_3 = mean(`3`, na.rm = TRUE)) %>%
+  mutate(rural_pct_2 = mean(`2`, na.rm = TRUE)) %>%
+  mutate(rural_pct_1 = mean(`1`, na.rm = TRUE)) %>%
+  select(state_fips, starts_with("rural_pct_")) %>%
+  distinct()
+
+#getting state name for choropleth maps 
+fips_codes <- fips_codes %>%
+  select(state_code, state_name) %>%
+  distinct()
+
+myMap <- left_join(myMap, fips_codes, by = c("state_fips" = "state_code")) %>% 
+  rename(region = state_name) %>%
+  mutate(region = tolower(region)) %>%
+  mutate(value = rural_pct_4 - rural_pct_1)
+
+state_choropleth(myMap,
+  zoom = continental_us_states) +
+  scale_fill_brewer(palette="PuOr")+
+  ggtitle(label = "Top quartile for amount of funding per capita vs the bottom quartile", subtitle =  "Difference in avg % rural") + 
+  labs(fill = "Difference in % rural (top minus bottom)")
+
+
+```
+
+
+
 
 # Bar Chart of Quantity of Grants Recieved 
 Looking at the number of grants received (1 being least and 4 being the most)
