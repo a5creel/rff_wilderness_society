@@ -1,0 +1,168 @@
+---
+title: "Regressions for Grant Quartiles"
+author: "Andie Creel"
+date: "7/21/2021"
+output: 
+  pdf_document:
+    number_sections: true
+    extra_dependencies: ["float"]
+
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/regressions/grant_quarts.pdf')) })
+---
+
+
+
+
+```{r, include=FALSE}
+#R Markdown stuff
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+options(tinytex.verbose = TRUE)
+```
+
+**Active years: 1975-2014 because the non-hispanic white characteristic is not available prior to 1980 and I am removing years > 2015 for now because I haven't done average per year in the decade**
+
+Currently all grants types are included 
+
+```{r setup, include=FALSE}
+library(vroom)
+library(tidyr)
+library(stringr)
+library(usmap)
+library(tidycensus)
+library(ggplot2)
+library(fixest)
+library(kableExtra)
+library(gtools)
+library(forcats)
+library("wesanderson")
+options(scipen=99999)
+library(janitor)
+library(dplyr)
+# ---- #
+library(choroplethr)
+library(choroplethrMaps)
+library(usdata)
+library(maps)
+data(fips_codes)
+data(continental_us_states)
+# --- #
+
+myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv")
+
+# additional data cleaning ------------
+
+# Removing counties whose FIPSs code I didn't identify and don't have demo data for (1975-2018)
+# ATTN: I am removing years > 2015 for now because I haven't done average per year in the decade
+myWorking <- myWorking %>%
+  filter(!is.na(fips)) %>%
+  distinct() %>%
+  mutate(type = as.factor(type)) %>%
+  mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>%
+  filter(!is.na(white_pct)) %>%
+  dplyr::mutate(poc_pct = 100 - white_pct) %>%
+  filter(year < 2015)
+
+
+# Grouping outcome variables by decade (number of grants received, amount received, average amount received per capita per decade, avg # grants per 100,000 people per decade)
+myWorking_decade <- myWorking %>%
+  group_by(fips, merge_year) %>%
+  mutate(decade_grants = sum(got_grant)) %>%
+  mutate(decade_amount = sum(amount, na.rm = TRUE)) %>%
+  mutate(decade_avg_per_cap_amount = sum(amount, na.rm = TRUE)/mean(annual_population, na.rm = TRUE)) %>%
+  mutate(decade_avg_per_cap_grants = sum(got_grant)/mean((annual_population/100000), na.rm = TRUE)) %>%
+  select(fips, merge_year, state_fips, ends_with("_pct"), starts_with("decade_")) %>%
+  ungroup() %>%
+  distinct()
+
+
+```
+
+
+# Regressions
+
+
+```{r,  echo=FALSE, message=FALSE}
+
+#park type control
+
+avgQuantity <- feols(data = myWorking_decade, decade_grants ~ poc_pct + inc_below_pov_pct + rural_pct | state_fips + merge_year)
+avgAmount <- feols(data = myWorking_decade, decade_amount ~ poc_pct + inc_below_pov_pct + rural_pct | state_fips + merge_year)
+avgQuantity_perCap <- feols(data = myWorking_decade, decade_avg_per_cap_grants ~ poc_pct + inc_below_pov_pct + rural_pct | state_fips + merge_year)
+avgAmount_perCap <- feols(data = myWorking_decade, decade_avg_per_cap_amount ~ poc_pct + inc_below_pov_pct + rural_pct | state_fips + merge_year)
+
+
+#economic 
+etable(avgQuantity,
+       avgAmount,
+       avgQuantity_perCap,
+       avgAmount_perCap,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Income") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+```
+
+# Select State Regressions
+
+```{r,  echo=FALSE, message=FALSE}
+
+#Getting state abbrev back in for simplicity in code
+state_fips_codes <- fips_codes %>%
+  select(state, state_code) %>%
+  distinct()
+
+myWorking_decade <- left_join(myWorking_decade, state_fips_codes, by = c("state_fips" = "state_code"))
+
+# producing regression table for each state in the south
+myTable <- function (i) {
+  temp <- myWorking_decade %>%
+    filter(state == i)
+
+  avgQuantity <- feols(data = temp, decade_grants ~ poc_pct + inc_below_pov_pct + rural_pct | merge_year)
+  avgAmount <- feols(data = temp, decade_amount ~ poc_pct + inc_below_pov_pct + rural_pct | merge_year)
+  avgQuantity_perCap <- feols(data = temp, decade_avg_per_cap_grants ~ poc_pct + inc_below_pov_pct + rural_pct | merge_year)
+  avgAmount_perCap <- feols(data = temp, decade_avg_per_cap_amount ~ poc_pct + inc_below_pov_pct + rural_pct | merge_year)
+  
+  
+  #economic 
+ etable(avgQuantity,
+         avgAmount,
+         avgQuantity_perCap,
+         avgAmount_perCap,
+         signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+    kbl(booktabs = T, caption = paste0("State: ", i)) %>%
+    kable_styling(latex_options = c("scale_down","HOLD_position")) 
+  
+
+}
+
+south_list <- list("LA", "MS", "AL", "GA", "SC", "NC", "TN", "AR")
+
+
+myTable("AL")
+myTable("LA")
+myTable("MS")
+myTable("GA")
+myTable("SC")
+myTable("NC")
+myTable("TN")
+myTable("AR")
+
+
+myTable("SD")
+myTable("CO")
+
+myTable("AZ")
+myTable("MD")
+
+
+
+
+
+
+
+
+```
+
+

@@ -1,25 +1,20 @@
 ---
-title: "Quartiles of Grants Described"
+title: "Quartiles of Grants Described: Development"
 author: "Andie Creel"
-date: "7/19/2021"
+date: "7/21/2021"
 output: 
   pdf_document:
     number_sections: true
     extra_dependencies: ["float"]
 
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/descriptive/grant_quarts.pdf')) })
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'Exploratory_Output/descriptive/grant_quarts_development.pdf')) })
 ---
+
+**This document only looks at grants that involved land acquisition (grant type is either A for acquisition or C for combination)**
 
 Brown colors tend to indicated negative numbers and purple tend to indicate positive numbers. 
 
-**Active years: 1975-2018 because the non-hispanic white characteristic is not available prior to 1980**
-
-
-I get quartiles for the quantity of grants received after grouping by state and decade. I categorize a county with a "1" if the county receives the fewest number of grants. I categorize a county with a "4" if it receives the most amount of grants. Below, I look at the average percent of the population that is a certain demographic characteristic (ie white, people of color, below poverty line, etc) and see if there are trends in the percentage of certain demographic characteristics between the counties that get categorized with a 1 versus a 4. I do this averaging across all states and then do it again after dropping states whose counties' average population contains less than 10% POC (because they may be so homogeneous that they damped any true trends across quartiles that exist in more diverse states).
-
-
-I repeat this process for the amount of funding received and the amount of funding received per capita. 
-
+Active years: 1975-2018 because the non-hispanic white characteristic is not available prior to 1980
 
 
 ```{r, include=FALSE}
@@ -61,10 +56,16 @@ myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv
 myWorking <- myWorking %>%
   filter(!is.na(fips)) %>%
   distinct() %>%
-  mutate(type = as.factor(type)) %>%
+  mutate(type = str_sub(type,0,1)) %>%
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>%
   filter(!is.na(white_pct)) %>%
   dplyr::mutate(poc_pct = 100 - white_pct)
+
+
+myWorking <- myWorking %>%
+  filter(type != "P") %>% # Planning 
+  filter(type != "C") %>% # combination
+  filter(type != "A") # acquisition 
 
 # Grouping outcome variables by decade (number of grants received, amount received, average amount received per capita per decade, avg # grants per 100,000 people per decade)
 myWorking_decade <- myWorking %>%
@@ -213,8 +214,9 @@ myMap_poc <- left_join(myMap_poc, fips_codes, by = c("state_fips" = "state_code"
 
 state_choropleth(myMap_poc,
   zoom = continental_us_states) +
-  # scale_fill_brewer(palette="YlOrBr", direction = -1)+
-  scale_fill_brewer(palette="PuOr")+
+  # scale_fill_brewer(palette="Purples")+
+  # scale_fill_brewer(palette="YlOrBr", direction = -1) +
+  scale_fill_brewer(palette="PuOr") +
   ggtitle(label = "POC: Top quartile for # grants per capita vs the bottom quartile", 
           subtitle =  "Difference in avg % of POC (top minus bottom)") + 
   labs(fill = "Difference in %") +
@@ -247,7 +249,7 @@ myMap_pov <- left_join(myMap_pov, fips_codes, by = c("state_fips" = "state_code"
 state_choropleth(myMap_pov,
   zoom = continental_us_states) +
   # scale_fill_brewer(palette="YlOrBr", direction = -1)+
-  scale_fill_brewer(palette="PuOr")+
+  scale_fill_brewer(palette="Purples")+
   ggtitle(label = "Poverty: Top quartile for # grants per capita vs the bottom quartile", 
           subtitle =  "Difference in avg % in poverty (top minus bottom)") + 
   labs(fill = "Difference in % ") +
@@ -279,7 +281,7 @@ myMap_rural <- left_join(myMap_rural, fips_codes, by = c("state_fips" = "state_c
 
 state_choropleth(myMap_rural,
   zoom = continental_us_states) +
-  scale_fill_brewer(palette="PuOr")+
+  scale_fill_brewer(palette="Purples")+
   ggtitle(label = "Rural: Top quartile for # grants per capita vs the bottom quartile", 
           subtitle =  "Difference in avg % rural (top minus bottom)") + 
   labs(fill = "Difference in %") +
@@ -288,11 +290,18 @@ state_choropleth(myMap_rural,
 
 ```
 Interpretation: 
-In MS, AL, and GA, the counties that receive the most number grants per capita in a given decade have **6-14% less POC** than counties that receive the least number of grants per capita.
+In CA, the counties that receive the most number grants per capita in a given decade have **9-24% less POC** than counties that receive the least number of grants per capita.
 
-In WV, the counties that receive the most number grants per capita in a given decade have **1-4% less people in poverty** than counties that receive the least number of grants per capita.
+Quite a few states have a strong trend. 
 
-In TX, the counties that receive the most number grants per capita in a given decade have **6- 21% less rural people** than counties that receive the least number of grants per capita.
+In AZ, the counties that receive the most number grants per capita in a given decade have **6-8% more people in poverty** than counties that receive the least number of grants per capita.
+
+No major regional or national trends with quantity per cap and poverty. 
+
+In CO, the counties that receive the most number grants per capita in a given decade have **56-72% more rural people** than counties that receive the least number of grants per capita.
+
+There is a major correlation between rural and quantity per cap.
+
 
 ## Amount of grant funding per capita 
 
@@ -327,8 +336,8 @@ myMap_poc <- left_join(myMap_poc, fips_codes, by = c("state_fips" = "state_code"
 
 state_choropleth(myMap_poc,
   zoom = continental_us_states) +
-  # scale_fill_brewer(palette="YlOrBr", direction = -1)+
-  scale_fill_brewer(palette="PuOr")+
+  scale_fill_brewer(palette="YlOrBr", direction = -1)+
+  # scale_fill_brewer(palette="PuOr")+
   ggtitle(label = "POC: Top quartile for amount of funding per capita vs the bottom quartile", 
           subtitle =  "Difference in avg % of POC (top minus bottom)") + 
   labs(fill = "Difference in % ")+
@@ -360,8 +369,8 @@ myMap_pov <- left_join(myMap_pov, fips_codes, by = c("state_fips" = "state_code"
 
 state_choropleth(myMap_pov,
   zoom = continental_us_states) +
-  scale_fill_brewer(palette="PuOr")+
-  # scale_fill_brewer(palette="Purples")+
+  # scale_fill_brewer(palette="PuOr")+
+  scale_fill_brewer(palette="Purples")+
   ggtitle(label = "Poverty: Top quartile for amount of funding per capita vs the bottom quartile", 
           subtitle =  "Difference in avg % in poverty (top minus bottom)") + 
   labs(fill = "Difference in % ")+
@@ -393,8 +402,8 @@ myMap_rural <- left_join(myMap_rural, fips_codes, by = c("state_fips" = "state_c
 
 state_choropleth(myMap_rural,
   zoom = continental_us_states) +
-  # scale_fill_brewer(palette="Purples")+
-  scale_fill_brewer(palette="PuOr")+
+  scale_fill_brewer(palette="Purples")+
+  # scale_fill_brewer(palette="PuOr")+
   ggtitle(label = "Rural: Top quartile for amount of funding per capita vs the bottom quartile", 
           subtitle =  "Difference in avg % rural (top minus bottom)") + 
   labs(fill = "Difference in % ")+
@@ -403,21 +412,25 @@ state_choropleth(myMap_rural,
 
 ```
 Interpretation: 
-In California, the counties that receive the most amount of grant funding per capita in a given decade have **9-22% less POC** than counties that receive the least amount of grant funding per capita.
+In NV, the counties that receive the most amount of grant funding per capita in a given decade have **5-14% less POC** than counties that receive the least amount of grant funding per capita.
 
-In LA, the counties that receive the most amount of grant funding per capita in a given decade have **4-6% more people in poverty** than counties that receive the least amount of grant funding per capita.
+There are several states that with a moderate to strong negative correlations between POC and funding per cap
 
-In every state, the counties that receive the most most amount of grant funding per capita in a given decade have **more rural people** than counties that receive the least amount of grant funding per capita.
+In NM, the counties that receive the most amount of grant funding per capita in a given decade have **1-8% less people in poverty** than counties that receive the least amount of grant funding per capita.
 
+No major trend
 
-*Concern: potential for the trend we're seeing in POC receiving less grants could just be driven by POC living in urban places.* 
-However, I think it's still valid for us to look at total quantity and total amount funding because parks are a public good, meaning their less exclusionary. I think if use was more exclusionary, the per capita measure would be really important. But for a public good, multiple people can use the park over and over again. Per capita is an important metric but not as critical in this case as it may be in others. 
+In almost every state, the counties that receive the most most amount of grant funding per capita in a given decade have **more rural people** than counties that receive the least amount of grant funding per capita.
+
+Very strong positive correlation between rural and funding per cap
 
 ## Quantity of grants
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # QUANTITY OF GRANTS 
+rm(myMap_poc, myMap_pov, myMap_rural)
+
 
 # fourth quartile is receiving most amount of grants 
 
@@ -479,8 +492,8 @@ myMap_pov <- left_join(myMap_pov, fips_codes, by = c("state_fips" = "state_code"
 
 state_choropleth(myMap_pov,
   zoom = continental_us_states) +
-  # scale_fill_brewer(palette="YlOrBr", direction = -1)+
-  scale_fill_brewer(palette="PuOr")+
+  scale_fill_brewer(palette="YlOrBr", direction = -1)+
+  # scale_fill_brewer(palette="PuOr")+
   ggtitle(label = "Poverty: Top quartile for # grants vs the bottom quartile", 
           subtitle =  "Difference in avg % in poverty (top minus bottom)") + 
   labs(fill = "Difference in % ") +
@@ -522,11 +535,17 @@ state_choropleth(myMap_rural,
 
 ```
 Interpretation: 
-In MS, AL, GA and SC, the counties that receive the highest quantity of grants in a given decade have **6-22% less POC** than counties that receive the smallest quantity of grants.
+In MD and DE and other, the counties that receive the highest quantity of grants in a given decade have **4-15% less POC** than counties that receive the smallest quantity of grants.
 
-In MS and AL, the counties that receive the highest quantity of grants in a given decade have **4-11% less people in poverty** than counties that receive the smallest quantity of grants.
+This is a moderate to strong trend in some states.
 
-For the majority of the country, the counties that receive the highest quantity of grants in a given decade have **are less rural** than counties that receive the smallest quantity of grants.
+In ND, the counties that receive the highest quantity of grants in a given decade have **5-10% less people in poverty** than counties that receive the smallest quantity of grants.
+
+There is a weak trend
+
+For the majority of the country, the counties that receive the highest quantity of grants in a given decade **are less rural** than counties that receive the smallest quantity of grants.
+
+There is a very strong trends
 
 
 ## Amount of grant funding
@@ -596,8 +615,8 @@ myMap_pov <- left_join(myMap_pov, fips_codes, by = c("state_fips" = "state_code"
 state_choropleth(myMap_pov,
   zoom = continental_us_states,
   num_colors = 7) +
-  # scale_fill_brewer(palette="PuOr")+
-  scale_fill_brewer(palette="YlOrBr", direction = -1)+
+  scale_fill_brewer(palette="PuOr")+
+  # scale_fill_brewer(palette="YlOrBr", direction = -1)+
   # scale_fill_brewer(palette="Purples")+
   ggtitle(label = "Poverty: Top quartile for amount of funding vs the bottom quartile", 
           subtitle =  "Difference in avg % in poverty (top minus bottom)") + 
@@ -639,9 +658,14 @@ state_choropleth(myMap_rural,
 
 
 ```
-In MS, AL, GA and SC, the counties that receive the highest amount of grant funding in a given decade have **5-22% less POC** than counties that receive the smallest qamount of grant funding.
+In VA, the counties that receive the highest amount of grant funding in a given decade have **3-16% less POC** than counties that receive the smallest amount of grant funding.
 
-In MS, FL and AL, the counties that receive the highest amount of grant funding in a given decade have **4-10% less people in poverty** than counties that receive the lowest amount of grant funding.
+There are some states with a moderate trend.
 
-For the majority of the county, the counties that receive the highest amount of grant fundin in a given decade have **are less rural** than counties that receive the smallest amount of grant funding.
+In NM, the counties that receive the highest amount of grant funding in a given decade have **1-2% more people in poverty** than counties that receive the lowest amount of grant funding.
 
+No trends
+
+For the majority of the county, the counties that receive the highest amount of grant funding in a given decade have **are less rural** than counties that receive the smallest amount of grant funding.
+
+There is a very strong national trend
