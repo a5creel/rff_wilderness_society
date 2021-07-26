@@ -11,6 +11,16 @@ library(usmap)
 library(tidycensus)
 library(vroom)
 library(choroplethrMaps) # to pull in the county data (FIPS codes etc)
+# devtools::install_github("keberwein/blscrapeR")
+library(blscrapeR)
+
+
+
+# ------------ Consumer price index ---------------------#
+#uses package blscrapeR : https://github.com/keberwein/blscrapeR
+inflationStuff <- inflation_adjust(2018)
+vroom_write(inflationStuff, "Datasets/clean_data/inflation_rates.csv")
+
 
 # -------------- AGGREGATED LWCF (not long by year) ---------------
 
