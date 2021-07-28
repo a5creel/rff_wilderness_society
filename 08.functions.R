@@ -3,7 +3,7 @@
 # formatting a table to print quartile cut offs for amount per capita
 getQuartTable_amount <- function(quant) {
   quant <- quant %>%
-    mutate(decade = paste0(merge_year - 5, " - ", merge_year + 5)) %>%
+    mutate(decade = if_else(merge_year == 2010, paste0(merge_year - 5, " - ", merge_year + 8), paste0(merge_year - 5, " - ", merge_year + 5))) %>%
     mutate(`1` = paste0("0.00 - ", round(decade_amount_per_cap_25,2))) %>%
     mutate(`2` = paste0(round(decade_amount_per_cap_25, 2), " - ", round(decade_amount_per_cap_50, 2))) %>%
     mutate(`3` = paste0(round(decade_amount_per_cap_50, 2), " - ", round(decade_amount_per_cap_75, 2))) %>%
@@ -16,7 +16,7 @@ getQuartTable_amount <- function(quant) {
 # formatting a table to print quartile cut offs for quantity per 100k
 getQuartTable_quantity <- function(quant) {
   quant <- quant %>%
-    mutate(decade = paste0(merge_year - 5, " - ", merge_year + 5)) %>%
+    mutate(decade = if_else(merge_year == 2010, paste0(merge_year - 5, " - ", merge_year + 8), paste0(merge_year - 5, " - ", merge_year + 5))) %>%
     mutate(`1` = paste0("0.00 - ", round(decade_quantity_per_cap_25,2))) %>%
     mutate(`2` = paste0(round(decade_quantity_per_cap_25, 2), " - ", round(decade_quantity_per_cap_50, 2))) %>%
     mutate(`3` = paste0(round(decade_quantity_per_cap_50, 2), " - ", round(decade_quantity_per_cap_75, 2))) %>%
@@ -157,7 +157,7 @@ getAmountDF <- function(myDec) {
   myMedInc_avgs <- myWorking_decade %>%
     select(med_income_house, decade_amount_per_cap_quants) %>%
     group_by(decade_amount_per_cap_quants) %>%
-    mutate(avg_med_income = mean(med_income_house)) %>%
+    mutate(avg_med_income = mean(med_income_house, na.rm = TRUE)) %>%
     ungroup() %>%
     select(decade_amount_per_cap_quants, avg_med_income) %>%
     distinct()
@@ -202,7 +202,7 @@ getQuantityDF <- function(myDec) {
   myMedInc_avgs <- myWorking_decade %>%
     select(med_income_house, decade_quantity_per_cap_quants) %>%
     group_by(decade_quantity_per_cap_quants) %>%
-    mutate(avg_med_income = mean(med_income_house)) %>%
+    mutate(avg_med_income = mean(med_income_house, na.rm = TRUE)) %>%
     ungroup() %>%
     select(decade_quantity_per_cap_quants, avg_med_income) %>%
     distinct()

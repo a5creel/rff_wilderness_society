@@ -4,7 +4,7 @@
 # Warning: for all numbers to be accurate, this script needs to be run sequentially from top to bottom 
 # (if you jump around you can have mislabeled cells by accident)
 
-# ATTN: this is the first time I adjust for inflation
+# ATTN: All numbers are 2018 dollars (which occurs in 01.data_wrangle.R)
 
 # --- #
 library(vroom)
@@ -24,12 +24,8 @@ library(openxlsx)
 
 # made in 01.data_wrangle.R
 myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
-myInf <- vroom("Datasets/clean_data/inflation_rates.csv") 
 
-# Adjusting for inflation (2018 dollars)
-myWorking <- left_join(myWorking, myInf, by = "year") %>%
-  mutate(amount = amount/adj_value)
-rm(myInf)
+# Grant amounts are already adjusted for inflation, adjusting median income (2018 dollars)
 
 #Basic data cleaning
 myWorking <- myWorking %>%
@@ -39,9 +35,9 @@ myWorking <- myWorking %>%
   dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
   mutate(amount = if_else(is.na(amount), 0, amount))  # adding 0s for amount of grant rewarded
 
-# working years: 1975-2018
+# working years: 1965-2018
 myWorking %>%
-  select(year) %>%
+  select(real_year) %>%
   distinct() %>%
   summary()
 
@@ -111,15 +107,15 @@ myQuantity_development <- getQuantityDF(myWorking_decade_D)
 # labeling grant type 
 myAmount_all <- myAmount_all %>%
   mutate(grants_included = "All") %>%
-  mutate(years = "1975-2018")
+  mutate(years = "1965-2018")
 
 myAmount_acquisition <- myAmount_acquisition %>%
   mutate(grants_included = "Acquisition") %>%
-  mutate(years = "1975-2018")
+  mutate(years = "1965-2018")
 
 myAmount_development <- myAmount_development %>%
   mutate(grants_included = "Development") %>%
-  mutate(years = "1975-2018")
+  mutate(years = "1965-2018")
 
 # putting it all in one df
 myAmount <- bind_rows(myAmount_all, myAmount_acquisition)
@@ -132,15 +128,15 @@ rm(myAmount_acquisition, myAmount_all, myAmount_development)
 # labeling grant type and years
 myQuantity_all <- myQuantity_all %>%
   mutate(grants_included = "All") %>%
-  mutate(years = "1975-2018")
+  mutate(years = "1965-2018")
 
 myQuantity_acquisition <- myQuantity_acquisition %>%
   mutate(grants_included = "Acquisition") %>%
-  mutate(years = "1975-2018")
+  mutate(years = "1965-2018")
 
 myQuantity_development <- myQuantity_development %>%
   mutate(grants_included = "Development") %>%
-  mutate(years = "1975-2018")
+  mutate(years = "1965-2018")
 
 # putting it all in one df
 myQuantity <- bind_rows(myQuantity_all, myQuantity_acquisition)
@@ -149,13 +145,12 @@ myQuantity <- bind_rows(myQuantity, myQuantity_development) %>%
 rm(myQuantity_all, myQuantity_acquisition, myQuantity_development)
 
 
-# YEAR SPLITS: pre Reaegan -- 1975-1980 -------------------------------------------------------------------
+# YEAR SPLITS: pre Reaegan -- 1965-1980 -------------------------------------------------------------------
 
 # ALL GRANTS
 
 # Step 1: filter years in myWorking to years I want
 myWorking_preReagan <- myWorking %>%
-  filter(year >= 1975) %>%
   filter(year < 1981)
 
 # Step 2: group by decade
@@ -173,11 +168,11 @@ myQuantity_all_preReagan <- getQuantityDF(myDecade_preReagan)
 # Step 6: label grant type and years 
 myAmount_all_preReagan <- myAmount_all_preReagan %>%
   mutate(grants_included = "All") %>%
-  mutate(years = "1975-1980")
+  mutate(years = "1965-1980")
 
 myQuantity_all_preReagan <- myQuantity_all_preReagan %>%
   mutate(grants_included = "All") %>%
-  mutate(years = "1975-1980")
+  mutate(years = "1965-1980")
 
 # Step 7: add to main dataframes
 myAmount <- bind_rows(myAmount, myAmount_all_preReagan) 
@@ -190,7 +185,6 @@ rm(myWorking_preReagan, myAmount_all_preReagan, myQuantity_all_preReagan)
 
 # Step 1: filter years in myWorking to years I want
 myWorking_preReagan_A <- myWorking_acquisition %>%
-  filter(year >= 1975) %>%
   filter(year < 1981)
 
 # Step 2: group by decade
@@ -208,11 +202,11 @@ myQuantity_all_preReagan_A <- getQuantityDF(myDecade_preReagan_A)
 # Step 6: label grant type and years 
 myAmount_all_preReagan_A <- myAmount_all_preReagan_A %>%
   mutate(grants_included = "Acquisition") %>%
-  mutate(years = "1975-1980")
+  mutate(years = "1965-1980")
 
 myQuantity_all_preReagan_A <- myQuantity_all_preReagan_A %>%
   mutate(grants_included = "Acquisition") %>%
-  mutate(years = "1975-1980")
+  mutate(years = "1965-1980")
 
 # Step 7: add to main dataframes
 myAmount <- bind_rows(myAmount, myAmount_all_preReagan_A) 
@@ -225,7 +219,6 @@ rm(myWorking_preReagan_A, myAmount_all_preReagan_A, myQuantity_all_preReagan_A)
 
 # Step 1: filter years in myWorking to years I want
 myWorking_preReagan_D <- myWorking_development %>%
-  filter(year >= 1975) %>%
   filter(year < 1981)
 
 # Step 2: group by decade
@@ -243,11 +236,11 @@ myQuantity_All_preReagan_D <- getQuantityDF(myDecade_preReagan_D)
 # Step 6: label grant type and years 
 myAmount_All_preReagan_D <- myAmount_All_preReagan_D %>%
   mutate(grants_included = "Development") %>%
-  mutate(years = "1975-1980")
+  mutate(years = "1965-1980")
 
 myQuantity_All_preReagan_D <- myQuantity_All_preReagan_D %>%
   mutate(grants_included = "Development") %>%
-  mutate(years = "1975-1980")
+  mutate(years = "1965-1980")
 
 # Step 7: add to main dataframes
 myAmount <- bind_rows(myAmount, myAmount_All_preReagan_D) 
@@ -524,8 +517,8 @@ myQuantity_wide <- pivot_wider(myQuantity_long, names_from = grants_included, va
 myQuantity_wide_again <- pivot_wider(myQuantity_wide, names_from = quants, values_from = c("All", "Acquisition", "Development"))
 
 # WRITING TO EXCELL
-# write.xlsx(myAmount_wide_again, 'Exploratory_Output/excell_work/amount.xlsx', overwrite = TRUE)
-# write.xlsx(myQuantity_wide_again, 'Exploratory_Output/excell_work/quantity.xlsx', overwrite = TRUE)
+write.xlsx(myAmount_wide_again, 'Exploratory_Output/excell_work/spending.xlsx', overwrite = TRUE)
+write.xlsx(myQuantity_wide_again, 'Exploratory_Output/excell_work/quantity.xlsx', overwrite = TRUE)
 
 
 # Note: ZEROS DROPPED: ends up being same bc we did't calculate avgs for grants, we calculated the total amount of grant

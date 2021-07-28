@@ -1,6 +1,8 @@
 # Andie Creel / June 16th, 2021 / LWCF project for RFF
 # Purpose of Script: Taking raw data sets and making them workable 
 
+# ATTN: In this file, I adjust for inflation. All grant and income  are in 2018 $
+
 # ----------------
 
 library(plyr)
@@ -12,7 +14,7 @@ library(tidycensus)
 library(vroom)
 library(choroplethrMaps) # to pull in the county data (FIPS codes etc)
 # devtools::install_github("keberwein/blscrapeR")
-library(blscrapeR)
+library(blscrapeR) # pulls consumer price index
 
 
 
@@ -60,13 +62,14 @@ ipums <- ipums[-1,] # deleting descriptions from data
 
 ipums_clean <- ipums %>%
   dplyr::mutate(FIPS = paste0(STATEFP, COUNTYFP)) %>%
-  dplyr::select(FIPS, YEAR, AV0AA, A57AA, A57AD, starts_with("CY6"), B69AA, B69AB, B84AF, B79AA, BD5AA, CL6AA,
+  dplyr::select(FIPS, YEAR, AV0AA, A57AA, A57AD, starts_with("CY6"), B18AA, B69AA, B69AB, B84AF, B79AA, BD5AA, CL6AA,
                 B37AA, B37AB, B39AA, B39AB, B39AC, B39AD, B39AE, B39AF, B39AG, B39AH, CZ5AB, CZ5AD) %>%
   
   dplyr::rename(population = AV0AA) %>% #renaming variables
   dplyr::rename(urban = A57AA) %>%
   dplyr::rename(rural = A57AD) %>%
   dplyr::rename(white = CY6AA) %>%
+  dplyr::rename(white_70 = B18AA) %>% # white (including hispanic white): necessary bc non-hispanic white wasn't included until 1980
   dplyr::rename(black = CY6AB) %>%
   dplyr::rename(asian_native = CY6AC) %>%
   dplyr::rename(other = CY6AD) %>%
@@ -96,6 +99,7 @@ ipums_clean <- ipums %>%
   dplyr::mutate(urban = as.numeric(urban)) %>%
   dplyr::mutate(rural = as.numeric(rural)) %>%
   dplyr::mutate(white = as.numeric(white)) %>%
+  dplyr::mutate(white_70 = as.numeric(white_70)) %>%
   dplyr::mutate(black = as.numeric(black)) %>%
   dplyr::mutate(asian_native = as.numeric(asian_native)) %>%
   dplyr::mutate(hispanic = as.numeric(hispanic)) %>%
@@ -119,11 +123,15 @@ ipums_clean <- ipums %>%
   dplyr::mutate(other_renter = as.numeric(other_renter)) %>%
   dplyr::mutate(hispanic_renter = as.numeric(hispanic_renter)) %>%
   
+  # Because non-hispanic white isn't in 1970 decennial census,we use white for those years (includes some people who are hispanic)
+  mutate(white = if_else(YEAR == 1970, white_70, white)) %>%
+  
   dplyr::mutate(noCollegeDegree = less9thGrade + ninthToSomeCollege) %>%   #constructing less than college degree 
   
   dplyr::mutate(urban_pct = urban* 100 / population) %>% #calculating percent of county of certain demographics
   dplyr::mutate(rural_pct = rural* 100 / population) %>%
   dplyr::mutate(white_pct = white* 100 / population) %>%
+  dplyr::mutate(white_70_pct = white_70* 100 / population) %>%
   dplyr::mutate(black_pct = black* 100 / population) %>%
   dplyr::mutate(asian_native_pct = asian_native* 100 / population) %>%
   dplyr::mutate(hispanic_pct = hispanic* 100 / population) %>%
@@ -140,6 +148,7 @@ ipums_clean <- ipums %>%
 
 impus_nas <- ipums_clean %>%
   dplyr::summarise_all(funs(sum(is.na(.))))
+
 
 # ATTN: the 2010 data is really oddly split between with the YEAR field "2008-2012" and "2010"
 
@@ -279,6 +288,12 @@ myLWCF <- dplyr::left_join(myLWCF, county.map, by = c("county" = "NAME", "state_
   dplyr::select(-c(objectid, county, grantidelement, grantelementtitle, grantsponsor, congdistrict, relate, statefull)) # Removing useless variables 
 rm(county.map)
 
+#Don't have annual population before 1970, so merge those years on 1970s demographic info
+myLWCF <- myLWCF %>%
+  mutate(real_year = fiscal_year) %>%
+  mutate(fiscal_year = if_else(fiscal_year < 1970, 1970, fiscal_year))
+
+
 myPop_LWCF <- left_join(myAnnualPop, myLWCF, by = c("fips" = "county_fips" , "year" = "fiscal_year")) %>%
   mutate(got_grant = if_else(is.na(amount), 0, 1)) %>%
   dplyr::mutate(merge_year = round_any(year, 10)) %>%
@@ -292,21 +307,16 @@ myPop_LWCF <- left_join(myAnnualPop, myLWCF, by = c("fips" = "county_fips" , "ye
 myFinal <- left_join(myPop_LWCF, ipums_clean, by = c("merge_year" = "YEAR", "fips" = "FIPS")) %>%
   distinct()
 
+# Adjusting for inflation (2018 dollars)
+myInf <- vroom("Datasets/clean_data/inflation_rates.csv") # written at top of this file
 
+myFinal <- left_join(myFinal, myInf, by = "year") %>%
+  mutate(nominal_amount = amount) %>% # preserving nominal amount
+  mutate(nominal_income = med_income_house) %>% 
+  mutate(amount = amount/adj_value) %>% #adjusting for inflation
+  mutate(med_income_house = med_income_house/adj_value) 
+  
 vroom_write(myFinal, "Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv")
-
-#unique grants
-myTest_1 <- myFinal %>%
-  filter(!is.na(amount)) %>%
-  select(year, fips, amount, type) %>%
-  distinct() 
-
-#grants post 2014
-myTest_2 <- myFinal %>%
-  filter(!is.na(amount)) %>%
-  select(year, fips, amount) %>%
-  distinct() %>%
-  filter(year >= 2015)
 
 # ****************************************************************** # 
 # **************** THIS IS OUR FINAL DATASET, ABOVE **************** #
