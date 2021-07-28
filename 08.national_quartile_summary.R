@@ -36,8 +36,8 @@ myWorking <- myWorking %>%
   mutate(type = str_sub(type,0,1)) %>% #getting rid of a space 
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
   filter(!is.na(white_pct)) %>% # getting ride of rows where I couldn't get their demographic data
-  dplyr::mutate(poc_pct = 100 - white_pct) 
-  # mutate(real_amount = adjust_for_inflation(amount, year, "US", 2018))
+  dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
+  mutate(amount = if_else(is.na(amount), 0, amount))  # adding 0s for amount of grant rewarded
 
 # working years: 1975-2018
 myWorking %>%
@@ -49,12 +49,12 @@ myWorking %>%
 
 # Grouping outcome variables by decade 
 #(number of grants received, amount received, average amount received per capita per decade, avg # grants per 100,000 people per decade)
-myWorking_decade <- getDecade(myWorking) 
+myWorking_decade <- getDecade(myWorking)
 
 #getting quartiles added to data frame
 # ATTN: Note that these are national quartiles, not state quartiles. I've still grouped 
 # by decade to deal with some of the fluctuation in the amount of grant funding that was given out each year 
-myWorking_decade <- getQuartiles(myWorking_decade)
+myWorking_decade <- getQuartiles(myWorking_decade)$df
 
 # CALCULATIONG AVERAGE % FOR EACH QUARTILE (funding per cap) NATIONALLY
 myAmount_all <- getAmountDF(myWorking_decade)
@@ -75,7 +75,7 @@ myWorking_acquisition <- myWorking %>%
 myWorking_decade_A <- getDecade(myWorking_acquisition) 
 
 #getting quartiles added to dataframe
-myWorking_decade_A <- getQuartiles(myWorking_decade_A)
+myWorking_decade_A <- getQuartiles(myWorking_decade_A)$df
 
 # CALCULATIONG AVERAGE % FOR EACH QUARTILE (funding per cap) NATIONALLY
 myAmount_acquisition <- getAmountDF(myWorking_decade_A)
@@ -95,7 +95,7 @@ myWorking_development <- myWorking %>%
 myWorking_decade_D <- getDecade(myWorking_development) 
 
 #getting quartiles added to dataframe
-myWorking_decade_D <- getQuartiles(myWorking_decade_D)
+myWorking_decade_D <- getQuartiles(myWorking_decade_D)$df
 
 # CALCULATIONG AVERAGE % FOR EACH QUARTILE (funding per cap) NATIONALLY
 myAmount_development <- getAmountDF(myWorking_decade_D)
@@ -148,7 +148,6 @@ myQuantity <- bind_rows(myQuantity, myQuantity_development) %>%
   select(grants_included, years, decade_quantity_per_cap_quants, starts_with("avg_"))
 rm(myQuantity_all, myQuantity_acquisition, myQuantity_development)
 
-rm(myWorking_decade, myWorking_decade_A, myWorking_decade_D)
 
 # YEAR SPLITS: pre Reaegan -- 1975-1980 -------------------------------------------------------------------
 
@@ -163,7 +162,7 @@ myWorking_preReagan <- myWorking %>%
 myDecade_preReagan <- getDecade(myWorking_preReagan)
 
 # Step 3: get quantiles 
-myDecade_preReagan <- getQuartiles(myDecade_preReagan)
+myDecade_preReagan <- getQuartiles(myDecade_preReagan)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_all_preReagan <- getAmountDF(myDecade_preReagan)
@@ -185,7 +184,7 @@ myAmount <- bind_rows(myAmount, myAmount_all_preReagan)
 myQuantity <- bind_rows(myQuantity, myQuantity_all_preReagan)
 
 # Step 8: remove variables 
-rm(myWorking_preReagan, myDecade_preReagan, myAmount_all_preReagan, myQuantity_all_preReagan)
+rm(myWorking_preReagan, myAmount_all_preReagan, myQuantity_all_preReagan)
 
 # ACQUISITION GRANTS
 
@@ -198,7 +197,7 @@ myWorking_preReagan_A <- myWorking_acquisition %>%
 myDecade_preReagan_A <- getDecade(myWorking_preReagan_A)
 
 # Step 3: get quantiles 
-myDecade_preReagan_A <- getQuartiles(myDecade_preReagan_A)
+myDecade_preReagan_A <- getQuartiles(myDecade_preReagan_A)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_all_preReagan_A <- getAmountDF(myDecade_preReagan_A)
@@ -220,7 +219,7 @@ myAmount <- bind_rows(myAmount, myAmount_all_preReagan_A)
 myQuantity <- bind_rows(myQuantity, myQuantity_all_preReagan_A)
 
 # Step 8: remove variables 
-rm(myWorking_preReagan_A, myDecade_preReagan_A, myAmount_all_preReagan_A, myQuantity_all_preReagan_A)
+rm(myWorking_preReagan_A, myAmount_all_preReagan_A, myQuantity_all_preReagan_A)
 
 # DEVELOPMENT GRANTS
 
@@ -233,7 +232,7 @@ myWorking_preReagan_D <- myWorking_development %>%
 myDecade_preReagan_D <- getDecade(myWorking_preReagan_D)
 
 # Step 3: get quantiles 
-myDecade_preReagan_D <- getQuartiles(myDecade_preReagan_D)
+myDecade_preReagan_D <- getQuartiles(myDecade_preReagan_D)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_All_preReagan_D <- getAmountDF(myDecade_preReagan_D)
@@ -255,7 +254,7 @@ myAmount <- bind_rows(myAmount, myAmount_All_preReagan_D)
 myQuantity <- bind_rows(myQuantity, myQuantity_All_preReagan_D)
 
 # Step 8: remove variables 
-rm(myWorking_preReagan_D, myDecade_preReagan_D, myAmount_All_preReagan_D, myQuantity_All_preReagan_D)
+rm(myWorking_preReagan_D, myAmount_All_preReagan_D, myQuantity_All_preReagan_D)
 
 # YEAR SPLITS: Reagan until Obama -- 1981-2008 -------------------------------------------------------------------
 
@@ -270,7 +269,7 @@ myWorking_Reagan <- myWorking %>%
 myDecade_Reagan <- getDecade(myWorking_Reagan)
 
 # Step 3: get quantiles 
-myDecade_Reagan <- getQuartiles(myDecade_Reagan)
+myDecade_Reagan <- getQuartiles(myDecade_Reagan)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_all_Reagan <- getAmountDF(myDecade_Reagan)
@@ -292,7 +291,7 @@ myAmount <- bind_rows(myAmount, myAmount_all_Reagan)
 myQuantity <- bind_rows(myQuantity, myQuantity_all_Reagan)
 
 # Step 8: remove variables 
-rm(myWorking_Reagan, myDecade_Reagan, myAmount_all_Reagan, myQuantity_all_Reagan)
+rm(myWorking_Reagan, myAmount_all_Reagan, myQuantity_all_Reagan)
 
 # ACQUISITION GRANTS
 
@@ -305,7 +304,7 @@ myWorking_Reagan_A <- myWorking_acquisition %>%
 myDecade_Reagan_A <- getDecade(myWorking_Reagan_A)
 
 # Step 3: get quantiles 
-myDecade_Reagan_A <- getQuartiles(myDecade_Reagan_A)
+myDecade_Reagan_A <- getQuartiles(myDecade_Reagan_A)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_all_Reagan_A <- getAmountDF(myDecade_Reagan_A)
@@ -327,7 +326,7 @@ myAmount <- bind_rows(myAmount, myAmount_all_Reagan_A)
 myQuantity <- bind_rows(myQuantity, myQuantity_all_Reagan_A)
 
 # Step 8: remove variables 
-rm(myWorking_Reagan_A, myDecade_Reagan_A, myAmount_all_Reagan_A, myQuantity_all_Reagan_A)
+rm(myWorking_Reagan_A, myAmount_all_Reagan_A, myQuantity_all_Reagan_A)
 
 # DEVELOPMENT GRANTS
 
@@ -340,7 +339,7 @@ myWorking_Reagan_D <- myWorking_development %>%
 myDecade_Reagan_D <- getDecade(myWorking_Reagan_D)
 
 # Step 3: get quantiles 
-myDecade_Reagan_D <- getQuartiles(myDecade_Reagan_D)
+myDecade_Reagan_D <- getQuartiles(myDecade_Reagan_D)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_All_Reagan_D <- getAmountDF(myDecade_Reagan_D)
@@ -362,7 +361,7 @@ myAmount <- bind_rows(myAmount, myAmount_All_Reagan_D)
 myQuantity <- bind_rows(myQuantity, myQuantity_All_Reagan_D)
 
 # Step 8: remove variables 
-rm(myWorking_Reagan_D, myDecade_Reagan_D, myAmount_All_Reagan_D, myQuantity_All_Reagan_D)
+rm(myWorking_Reagan_D, myAmount_All_Reagan_D, myQuantity_All_Reagan_D)
 
 
 
@@ -383,7 +382,7 @@ myWorking_Obama <- myWorking %>%
 myDecade_Obama <- getDecade(myWorking_Obama)
 
 # Step 3: get quantiles 
-myDecade_Obama <- getQuartiles(myDecade_Obama)
+myDecade_Obama <- getQuartiles(myDecade_Obama)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_all_Obama <- getAmountDF(myDecade_Obama)
@@ -405,7 +404,7 @@ myAmount <- bind_rows(myAmount, myAmount_all_Obama)
 myQuantity <- bind_rows(myQuantity, myQuantity_all_Obama)
 
 # Step 8: remove variables 
-rm(myWorking_Obama, myDecade_Obama, myAmount_all_Obama, myQuantity_all_Obama)
+rm(myWorking_Obama, myAmount_all_Obama, myQuantity_all_Obama)
 
 # ACQUISITION GRANTS
 
@@ -417,7 +416,7 @@ myWorking_Obama_A <- myWorking_acquisition %>%
 myDecade_Obama_A <- getDecade(myWorking_Obama_A)
 
 # Step 3: get quantiles 
-myDecade_Obama_A <- getQuartiles(myDecade_Obama_A)
+myDecade_Obama_A <- getQuartiles(myDecade_Obama_A)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_all_Obama_A <- getAmountDF(myDecade_Obama_A)
@@ -439,7 +438,7 @@ myAmount <- bind_rows(myAmount, myAmount_all_Obama_A)
 myQuantity <- bind_rows(myQuantity, myQuantity_all_Obama_A)
 
 # Step 8: remove variables 
-rm(myWorking_Obama_A, myDecade_Obama_A, myAmount_all_Obama_A, myQuantity_all_Obama_A)
+rm(myWorking_Obama_A, myAmount_all_Obama_A, myQuantity_all_Obama_A)
 
 # DEVELOPMENT GRANTS
 
@@ -451,7 +450,7 @@ myWorking_Obama_D <- myWorking_development %>%
 myDecade_Obama_D <- getDecade(myWorking_Obama_D)
 
 # Step 3: get quantiles 
-myDecade_Obama_D <- getQuartiles(myDecade_Obama_D)
+myDecade_Obama_D <- getQuartiles(myDecade_Obama_D)$df
 
 # Step 4: avg % for each quartile -- funding per cap 
 myAmount_All_Obama_D <- getAmountDF(myDecade_Obama_D)
@@ -473,7 +472,7 @@ myAmount <- bind_rows(myAmount, myAmount_All_Obama_D)
 myQuantity <- bind_rows(myQuantity, myQuantity_All_Obama_D)
 
 # Step 8: remove variables 
-rm(myWorking_Obama_D, myDecade_Obama_D, myAmount_All_Obama_D, myQuantity_All_Obama_D)
+rm(myWorking_Obama_D, myAmount_All_Obama_D, myQuantity_All_Obama_D)
 
 
 
@@ -525,9 +524,140 @@ myQuantity_wide <- pivot_wider(myQuantity_long, names_from = grants_included, va
 myQuantity_wide_again <- pivot_wider(myQuantity_wide, names_from = quants, values_from = c("All", "Acquisition", "Development"))
 
 # WRITING TO EXCELL
-write.xlsx(myAmount_wide_again, 'Exploratory_Output/excell_work/amount.xlsx', overwrite = TRUE)
-write.xlsx(myQuantity_wide_again, 'Exploratory_Output/excell_work/quantity.xlsx', overwrite = TRUE)
+# write.xlsx(myAmount_wide_again, 'Exploratory_Output/excell_work/amount.xlsx', overwrite = TRUE)
+# write.xlsx(myQuantity_wide_again, 'Exploratory_Output/excell_work/quantity.xlsx', overwrite = TRUE)
 
 
+# Note: ZEROS DROPPED: ends up being same bc we did't calculate avgs for grants, we calculated the total amount of grant
+# funding per capita and the total amount of grant quantity per 100k people. 
 
 
+# GETTING THE QUARTILES --------------------------------------------------------
+#getQuartiles returns a neat table of the quartile cut offs to paste into the master excel sheet that I make by hand
+# most of this is happening in the funtions file (get Quartiles calls an other function that makes the nice table)
+
+# All Years
+
+#all grants
+quant_amount <- getQuartiles(myWorking_decade)$quant_amount %>%
+  mutate(name = "All Grants: all years")
+quant_quantity <- getQuartiles(myWorking_decade)$quant_quantity %>%
+  mutate(name = "All Grants: all years")
+
+quant_final <- bind_rows(quant_amount, quant_quantity)
+
+#acquisition
+quant_temp <- getQuartiles(myWorking_decade_A)$quant_amount %>%
+  mutate(name = "acquisition: all years")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myWorking_decade_A)$quant_quantity %>%
+  mutate(name = "acquisition: all years")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+
+#development
+quant_temp <- getQuartiles(myWorking_decade_D)$quant_amount %>%
+  mutate(name = "development: all years")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myWorking_decade_D)$quant_quantity %>%
+  mutate(name = "development: all years")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+# pre-Reagan
+
+#all grants
+quant_temp <- getQuartiles(myDecade_preReagan)$quant_amount %>%
+  mutate(name = "All Grants: pre Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_preReagan)$quant_quantity %>%
+  mutate(name = "All Grants: pre Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+#acquisition
+quant_temp <- getQuartiles(myDecade_preReagan_A)$quant_amount %>%
+  mutate(name = "acquisition: pre Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_preReagan_A)$quant_quantity %>%
+  mutate(name = "acquisition: pre Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+
+#development
+quant_temp <- getQuartiles(myDecade_preReagan_D)$quant_amount %>%
+  mutate(name = "development: pre Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_preReagan_D)$quant_quantity %>%
+  mutate(name = "development: pre Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+
+# Reagan
+
+#all grants
+quant_temp <- getQuartiles(myDecade_Reagan)$quant_amount %>%
+  mutate(name = "All Grants: Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_Reagan)$quant_quantity %>%
+  mutate(name = "All Grants: Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+#acquisition
+quant_temp <- getQuartiles(myDecade_Reagan_A)$quant_amount %>%
+  mutate(name = "acquisition: Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_Reagan_A)$quant_quantity %>%
+  mutate(name = "acquisition: Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+
+#development
+quant_temp <- getQuartiles(myDecade_Reagan_D)$quant_amount %>%
+  mutate(name = "development: Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_Reagan_D)$quant_quantity %>%
+  mutate(name = "development: Reagan")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+
+# Obama
+
+#all grants
+quant_temp <- getQuartiles(myDecade_Obama)$quant_amount %>%
+  mutate(name = "All Grants: Obama")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_Obama)$quant_quantity %>%
+  mutate(name = "All Grants: Obama")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+#acquisition
+quant_temp <- getQuartiles(myDecade_Obama_A)$quant_amount %>%
+  mutate(name = "acquisition: Obama")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_Obama_A)$quant_quantity %>%
+  mutate(name = "acquisition: Obama")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+
+#development
+quant_temp <- getQuartiles(myDecade_Obama_D)$quant_amount %>%
+  mutate(name = "development: Obama")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_temp <- getQuartiles(myDecade_Obama_D)$quant_quantity %>%
+  mutate(name = "development: Obama")
+quant_final <- bind_rows(quant_final, quant_temp)
+
+quant_final <- quant_final %>%
+  arrange(outcome)
+
+write.xlsx(quant_final, 'Exploratory_Output/excell_work/quant_final.xlsx', overwrite = TRUE)
