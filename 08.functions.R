@@ -162,10 +162,21 @@ getAmountDF <- function(myDec) {
     select(decade_amount_per_cap_quants, avg_med_income) %>%
     distinct()
   
+  myPopulation_avgs <- myWorking_decade %>%
+    select(annual_population, decade_amount_per_cap_quants) %>%
+    group_by(decade_amount_per_cap_quants) %>%
+    mutate(avg_population = mean(annual_population, na.rm = TRUE)) %>%
+    ungroup() %>%
+    select(decade_amount_per_cap_quants, avg_population) %>%
+    distinct()
+  
+  
   myAmount_total <- left_join(myPOC_avgs, myPov_avgs, by = "decade_amount_per_cap_quants")
   myAmount_total <- left_join(myAmount_total, myRural_avgs, by = "decade_amount_per_cap_quants")
   myAmount_total <- left_join(myAmount_total, myMedInc_avgs, by = "decade_amount_per_cap_quants")
-  rm(myPOC_avgs, myPov_avgs, myRural_avgs, myMedInc_avgs)
+  myAmount_total <- left_join(myAmount_total, myPopulation_avgs, by = "decade_amount_per_cap_quants")
+  
+  rm(myPOC_avgs, myPov_avgs, myRural_avgs, myMedInc_avgs, myPopulation_avgs)
   return(myAmount_total)
 
 }
@@ -206,11 +217,21 @@ getQuantityDF <- function(myDec) {
     ungroup() %>%
     select(decade_quantity_per_cap_quants, avg_med_income) %>%
     distinct()
-  
+
+  myPopulation_avgs <- myWorking_decade %>%
+    select(annual_population, decade_quantity_per_cap_quants) %>%
+    group_by(decade_quantity_per_cap_quants) %>%
+    mutate(avg_population = mean(annual_population, na.rm = TRUE)) %>%
+    ungroup() %>%
+    select(decade_quantity_per_cap_quants, avg_population) %>%
+    distinct()
+   
   myQuantity_total <- left_join(myPOC_avgs, myPov_avgs, by = "decade_quantity_per_cap_quants")
   myQuantity_total <- left_join(myQuantity_total, myRural_avgs, by = "decade_quantity_per_cap_quants")
   myQuantity_total <- left_join(myQuantity_total, myMedInc_avgs, by = "decade_quantity_per_cap_quants")
-  rm(myPOC_avgs, myPov_avgs, myRural_avgs, myMedInc_avgs)
+  myQuantity_total <- left_join(myQuantity_total, myPopulation_avgs, by = "decade_quantity_per_cap_quants")
+  
+  rm(myPOC_avgs, myPov_avgs, myRural_avgs, myMedInc_avgs, myPopulation_avgs)
   
   return(myQuantity_total)
   
@@ -227,7 +248,7 @@ getDecade <- function(myWork) {
     mutate(decade_amount = sum(amount, na.rm = TRUE)) %>%
     mutate(decade_amount_per_cap = sum(amount, na.rm = TRUE)/mean(annual_population, na.rm = TRUE)) %>%
     mutate(decade_quantity_per_cap = sum(got_grant)/mean((annual_population/100000), na.rm = TRUE)) %>%
-    select(fips, merge_year, state_fips, ends_with("_pct"), starts_with("decade_"),  med_income_house) %>%
+    select(fips, merge_year, state_fips, annual_population, ends_with("_pct"), starts_with("decade_"),  med_income_house) %>%
     ungroup() %>%
     distinct()
   return(myWorking_decade)
