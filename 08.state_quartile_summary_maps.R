@@ -1,6 +1,6 @@
-# Quartiles of Greant Funding Recieve per Capita Described / A.M. Creel / July 28th, 2021 / 
+# Quartiles of Grant Funding Described / A.M. Creel / July 28th, 2021 / 
 # History: This script is mostly copy and pasted from 06.descriptive_reverse_quants.Rmd
-# Goal: Export the three graphs Maragaret wanted to include in the PERC presentation 
+# Goal: Export the graphs Maragaret wanted to include in the PERC presentation 
 # Brown colors tend to indicated negative numbers and purple tend to indicate positive numbers. 
 
 library(vroom)

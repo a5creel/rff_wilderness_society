@@ -20,7 +20,7 @@ knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
 options(tinytex.verbose = TRUE)
 ```
 
-**Active years: 1975-2014 because the non-hispanic white characteristic is not available prior to 1980 and I am removing years > 2015 for now because I haven't done average per year in the decade**
+**Active years: 1965-2014 because I am removing years > 2015 for now because I haven't done average per year in the decade**
 
 Currently all grants types are included 
 
@@ -55,14 +55,13 @@ myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv
 # Removing counties whose FIPSs code I didn't identify and don't have demo data for (1975-2018)
 # ATTN: I am removing years > 2015 for now because I haven't done average per year in the decade
 myWorking <- myWorking %>%
-  filter(!is.na(fips)) %>%
+  filter(!is.na(white_pct)) %>% # getting ride of rows where I couldn't get their demographic data
   distinct() %>%
-  mutate(type = as.factor(type)) %>%
+  mutate(type = str_sub(type,0,1)) %>% #getting rid of a space 
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>%
   filter(!is.na(white_pct)) %>%
   dplyr::mutate(poc_pct = 100 - white_pct) %>%
   filter(year < 2015)
-
 
 # Grouping outcome variables by decade (number of grants received, amount received, average amount received per capita per decade, avg # grants per 100,000 people per decade)
 myWorking_decade <- myWorking %>%
@@ -74,6 +73,13 @@ myWorking_decade <- myWorking %>%
   select(fips, merge_year, state_fips, ends_with("_pct"), starts_with("decade_")) %>%
   ungroup() %>%
   distinct()
+
+
+# working years: 1965-2018
+myWorking %>%
+  select(real_year) %>%
+  distinct() %>%
+  summary()
 
 
 ```
@@ -93,7 +99,7 @@ avgAmount_perCap <- feols(data = myWorking_decade, decade_avg_per_cap_amount ~ p
 
 
 #economic 
-etable(avgQuantity,
+myTable <- etable(avgQuantity,
        avgAmount,
        avgQuantity_perCap,
        avgAmount_perCap,
