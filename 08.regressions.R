@@ -46,7 +46,7 @@ myWorking_decade <- myWorking %>%
   mutate(decade_amount = sum(amount, na.rm = TRUE)) %>%
   mutate(decade_per_cap_amount = sum(amount, na.rm = TRUE)/mean(annual_population, na.rm = TRUE)) %>%
   mutate(decade_per_cap_grants = sum(got_grant)/mean((annual_population/100000), na.rm = TRUE)) %>%
-  select(state_fips, med_income_house, ends_with("_pct"), starts_with("decade_")) %>%
+  select(state_fips, annual_population, med_income_house, ends_with("_pct"), starts_with("decade_")) %>%
   mutate(med_income_house = med_income_house/1000) %>%
   ungroup() %>%
   distinct()
@@ -59,6 +59,16 @@ myWorking_decade_pretty <- myWorking_decade %>%
   rename(State = state_fips) %>%
   rename(Decade = merge_year) %>%
   rename(Median_Income = med_income_house)
+
+# getting mean for dependent variables 
+mean_totalGrants <- as.character(round(mean(myWorking_decade_pretty$decade_grants), 4))
+mean_totalFunding <- as.character(round(mean(myWorking_decade_pretty$decade_amount), 4))
+mean_perCapGrants <-  as.character(round(mean(myWorking_decade_pretty$decade_per_cap_grants, na.rm = TRUE),4))
+mean_perCapFunding <- as.character(round(mean(myWorking_decade_pretty$decade_per_cap_amount, na.rm = TRUE), 4))
+
+myMeans <- as.data.frame(list(mean_totalGrants, mean_totalFunding, mean_perCapGrants,  mean_perCapFunding), 
+                       col.names =  c("Total_Quantity", "Total_Amount", "PerCap_Quantity", "PerCap_Amount"),
+                       row.names = "Dep. Var. Means")
 
 
 # Regressions: includes poverty.
@@ -73,9 +83,10 @@ myTable <- etable(Total_Quantity,
                   PerCap_Quantity,
                   PerCap_Amount,
                   signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  bind_rows(myMeans) %>%
   kbl(booktabs = T, caption = "Change in county's outcome for a 1% increase in demographic characteristic", 
       col.names = c("Quantity per Decade", "Total Amount per Decade", "Quantity per 100K ppl per Decade", "Amount per capita per Decade"))  %>%
-  kable_classic_2(full_width = F) 
+  kable_classic_2(full_width = F) %>%
   footnote(general = paste0("Linear OLS model with fixed effects. Median Income is divided by 1,000. All dollar amounts are real 2018 USD."))
 myTable
 
@@ -95,6 +106,7 @@ myTable <- etable(Total_Quantity,
                   PerCap_Quantity,
                   PerCap_Amount,
                   signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  bind_rows(myMeans) %>%
   kbl(booktabs = T, caption = "Change in county's outcome for a 1% increase in demographic characteristic", 
       col.names = c("Quantity per Decade", "Total Amount per Decade", "Quantity per 100K ppl per Decade", "Amount per capita per Decade"))  %>%
   kable_classic_2(full_width = F) %>%
@@ -104,4 +116,47 @@ myTable
 #saving to pdf
 save_kable(myTable, "Exploratory_Output/regressions/PERC_median_income.pdf")
 
+
+# weighted regressions ---------------------------------------------------------
+# Regressions: includes poverty WEIGHTED
+Total_Quantity <- feols(data = myWorking_decade_pretty, decade_grants ~ POC + Poverty + Rural | State + Decade, weights = ~annual_population)
+Total_Amount <- feols(data = myWorking_decade_pretty, decade_amount ~ POC + Poverty + Rural | State + Decade, weights = ~annual_population)
+PerCap_Quantity <- feols(data = myWorking_decade_pretty, decade_per_cap_grants ~ POC + Poverty + Rural | State + Decade, weights = ~annual_population)
+PerCap_Amount <- feols(data = myWorking_decade_pretty, decade_per_cap_amount ~ POC + Poverty + Rural | State + Decade, weights = ~annual_population)
+
+#Output
+myTable <- etable(Total_Quantity,
+                  Total_Amount,
+                  PerCap_Quantity,
+                  PerCap_Amount,
+                  signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  bind_rows(myMeans) %>%
+  kbl(booktabs = T, caption = "Change in county's outcome for a 1% increase in demographic characteristic. Weighted by annual population!", 
+      col.names = c("Quantity per Decade", "Total Amount per Decade", "Quantity per 100K ppl per Decade", "Amount per capita per Decade"))  %>%
+  kable_classic_2(full_width = F) %>%
+  footnote(general = paste0("Linear OLS model with fixed effects. Median Income is divided by 1,000. All dollar amounts are real 2018 USD."))
+myTable
+
+save_kable(myTable, "Exploratory_Output/regressions/PERC_poverty_weighted.pdf")
+
+# Regressions: includes median income WEIGHTED
+Total_Quantity <- feols(data = myWorking_decade_pretty, decade_grants ~ POC + Median_Income + Rural | State + Decade, weights = ~annual_population)
+Total_Amount <- feols(data = myWorking_decade_pretty, decade_amount ~ POC + Median_Income + Rural | State + Decade, weights = ~annual_population)
+PerCap_Quantity <- feols(data = myWorking_decade_pretty, decade_per_cap_grants ~ POC + Median_Income + Rural | State + Decade, weights = ~annual_population)
+PerCap_Amount <- feols(data = myWorking_decade_pretty, decade_per_cap_amount ~ POC + Median_Income + Rural | State + Decade, weights = ~annual_population)
+
+#Output
+myTable <- etable(Total_Quantity,
+                  Total_Amount,
+                  PerCap_Quantity,
+                  PerCap_Amount,
+                  signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  bind_rows(myMeans) %>%
+  kbl(booktabs = T, caption = "Change in county's outcome for a 1% increase in demographic characteristic. Weighted by annual population!", 
+      col.names = c("Quantity per Decade", "Total Amount per Decade", "Quantity per 100K ppl per Decade", "Amount per capita per Decade"))  %>%
+  kable_classic_2(full_width = F) %>%
+  footnote(general = paste0("Linear OLS model with fixed effects. Median Income is divided by 1,000. All dollar amounts are real 2018 USD."))
+myTable
+
+save_kable(myTable, "Exploratory_Output/regressions/PERC_median_income_weighted.pdf")
 

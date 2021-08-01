@@ -175,7 +175,7 @@ state_choropleth(myMap_poc,
   zoom = continental_us_states) +
   # scale_fill_brewer(palette="YlOrBr", direction = -1)+
   scale_fill_brewer(palette="PuOr")+
-  ggtitle(label = "Difference between top and bottom LWCF spending quartiles in % people of color") + 
+  ggtitle(label = "Difference between top and bottom LWCF per capita spending quartiles in % people of color") + 
   labs(fill = "Difference in % ")+
   theme(legend.position="bottom") + 
   theme(plot.title = element_text(size = 15))
@@ -212,7 +212,7 @@ state_choropleth(myMap_pov,
   zoom = continental_us_states) +
   scale_fill_brewer(palette="PuOr")+
   # scale_fill_brewer(palette="Purples")+
-  ggtitle(label = "Difference between top and bottom LWCF spending quartiles per capita in % rural") + 
+  ggtitle(label = "Difference between top and bottom LWCF per capita spending quartiles per capita in % of people living in poverty") + 
   labs(fill = "Difference in % ")+
   theme(legend.position="bottom") + 
   theme(plot.title = element_text(size = 15))
@@ -248,13 +248,13 @@ state_choropleth(myMap_rural,
   zoom = continental_us_states) +
   # scale_fill_brewer(palette="Purples")+
   scale_fill_brewer(palette="PuOr")+
-  ggtitle(label = "Difference between top and bottom LWCF spending quartiles per capita in % people living below poverty line") + 
+  ggtitle(label = "Difference between top and bottom LWCF per caita spending quartiles per capita in % rural") + 
   labs(fill = "Difference in % ")+
   theme(legend.position="bottom")+ 
   theme(plot.title = element_text(size = 15))
 
 #Saving map
-ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/poverty_$perCap.jpeg")
+ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/rural_$perCap.jpeg")
 
 ##################### MAPS: TOTAL AMOUNT OF GRANT $$ #####################
 
@@ -321,15 +321,16 @@ myMap_pov <- left_join(myMap_pov, fips_codes, by = c("state_fips" = "state_code"
 
 state_choropleth(myMap_pov,
                  zoom = continental_us_states) +
-  scale_fill_brewer(palette="PuOr")+
+  scale_fill_brewer(palette="YlOrBr", direction = -1)+
+  # scale_fill_brewer(palette="PuOr")+
   # scale_fill_brewer(palette="Purples")+
-  ggtitle(label = "Difference between top and bottom LWCF total spending quartiles in % rural") + 
+  ggtitle(label = "Difference between top and bottom LWCF total spending quartiles in % living in poverty") + 
   labs(fill = "Difference in % ")+
   theme(legend.position="bottom") + 
   theme(plot.title = element_text(size = 15))
 
 #Saving map
-ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/rural_$total.jpeg")
+ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/poverty_$total.jpeg")
 
 
 # difference in % urban from 1st quart and 4th quart ----------------------------
@@ -357,12 +358,12 @@ myMap_rural <- left_join(myMap_rural, fips_codes, by = c("state_fips" = "state_c
 
 state_choropleth(myMap_rural,
                  zoom = continental_us_states) +
-  # scale_fill_brewer(palette="Purples")+
-  scale_fill_brewer(palette="PuOr")+
-  ggtitle(label = "Difference between top and bottom LWCF total spending quartiles in % people living below poverty line") + 
+  scale_fill_brewer(palette="YlOrBr", direction = -1)+
+  # scale_fill_brewer(palette="PuOr")+
+  ggtitle(label = "Difference between top and bottom LWCF total spending quartiles in % rural") + 
   labs(fill = "Difference in % ")+
   theme(legend.position="bottom")+ 
   theme(plot.title = element_text(size = 15))
 
 #Saving map
-ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/poverty_$total.jpeg")
+ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/rural_$total.jpeg")
