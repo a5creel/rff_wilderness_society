@@ -218,7 +218,7 @@ state_choropleth(myMap_pov,
   theme(plot.title = element_text(size = 15))
 
 #Saving map
-ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/rural_$perCap.jpeg")
+ggsave(width = 11, height = 8, filename = "Exploratory_Output/PERC_Presentation_Maps/poverty_$perCap.jpeg")
 
 
 # difference in % urban from 1st quart and 4th quart ----------------------------
