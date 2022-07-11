@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r, include=FALSE, message=FALSE}
 library(vroom)
 library(tidyr)
 library(stringr)
@@ -23,8 +23,8 @@ library(zoo)
 library(runner)
 ```
 
-
-```{r}
+Thanks to Matt Ashenfarb for providing helpful code on the suites index. 
+```{r, include=FALSE, message=FALSE}
 # made in 01.data_wrangle.R
 myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
 
@@ -46,22 +46,34 @@ myWorking %>%
   summary()
 
 # ALL GRANTS (except planning): ALL YEARS -----------------------------------------------------------------------
+```
 
+
+
+```{r, include=FALSE}
 # Grouping outcome variables by county, cumulative through all time 
 #(number of grants received, amount received, average amount received per capita per decade, avg # grants per 100,000 people)
 
 #cumulative through all years
 myWorking_cum <- myWorking %>%
     filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
-    group_by(fips) %>%
+    group_by(fips) %>% # grouping by county
     mutate(quantity = sum(got_grant)) %>% #grants through all time
     mutate(amount = sum(amount, na.rm = TRUE)) %>% # amount through all time
-    mutate(avg_white_ppl= mean(white)) %>%
+    mutate(avg_white_ppl= mean(white)) %>% 
     select(fips, state_fips, quantity, quantity, amount, avg_white_ppl) %>%
     ungroup() %>%
     distinct()
 
+```
 
+# Original Set Up
+Originally, my explanatory variable of interest is the average percent (through 1965-2018) of non-Hispanic white people in each county. The % of the county that is white comes from the decennial census and the 2018 America community survey.  
+
+My outcome variable of interest was originally the total amount of funding and the total amount of grants a county gets as a percentage of average % white, **but that doesn't account for population in a county. **
+
+## Suites Index Calculation 
+```{r}
 # suits index: code from Matt Ashenfarb ---------------
 
 #step one: get proportion of all white people & prop of all LWCF funding (amount) & prop of all LWCF grants (quantity)
@@ -93,13 +105,32 @@ print(paste('Suits index for quantity of grants and white:', suits_index_quantit
 myGraphData <- data.frame(white_cumsum, quantity_cumsum, amount_cumsum, myWorking_cum$white_prop)
 
 # Step 6: try to graph
-ggplot(myGraphData, aes(x=white_cumsum, y=quantity_cumsum)) + geom_point() +theme_bw()
+ggplot(myGraphData, aes(x=white_cumsum, y=quantity_cumsum)) + 
+  geom_point() +
+  ggtitle("Amount", subtitle = "Each point is for a county") +
+  xlab("Cumulative proportion of average % white") + 
+  ylab("Cumulative proportions quantity of grants") +
+  theme_bw()
+
+ggplot(myGraphData, aes(x=white_cumsum, y=amount_cumsum)) + 
+  geom_point() +
+  ggtitle("Quantity", subtitle = "Each point is for a county") +
+  xlab("Cumulative proportion of average % white") + 
+  ylab("Cumulative proportions of funding") +
+  theme_bw()
 
 
 ```
 
 
-```{r}
+## Quick Interprutation 
+Currently, each suits index is showing that the the LWCF policy is *progressive* with respect to people of color. However, I haven't accounted for how average % white may be correlated with population. 
+
+
+
+<!-- # Ex-Confederate States -->
+<!-- Code isn't done yet. -->
+```{r, include= FALSE}
 myWorking_cum_south <- myWorking %>%
     filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
     group_by(fips) %>%
