@@ -65,7 +65,68 @@ myWorking_cum <- myWorking %>%
     ungroup() %>%
     distinct()
 
+# Need to get two different per capital award amounts: per cap on nearest year to award amount (how it's been distributed historically) and per cap on most recent year (snap shot on how current people have been invested in)
+
+#Steps: 
+#1) Set up the two different per caps 
+#1.5) Set up median income on X axis instead of % race (maybe write function where we can say variable on X, and give it the dataset (ex, just MTs dataset) so that this can be neater and quicker)
+#2) National Suits for each (line graph)
+#3) Suits for each state (choropleth)
+
+# First per cap: per cap through time aka how it's been implemented through time 
+myWorking_per_cap_1 <- myWorking %>%
+    filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
+    mutate(amount_per_cap = amount / population) %>% # amount per capita each year
+    mutate(quantity_per_cap = got_grant/ population) %>% #  quantity per capita each year
+    group_by(fips) %>% # group by county
+    mutate(amount_per_cap_cum = sum(amount_per_cap)) %>% # cumulative amount per cap
+    mutate(quantity_per_cap_cum = sum(quantity_per_cap)) %>% # cumulative quantity per cap
+    mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
+    select(state_fips, fips, amount_per_cap_cum, quantity_per_cap_cum, avg_med_income_house) %>% # set up reduce down to one entry per county
+    distinct() # reduce
+
+#Second per cap: per current population aka snapshot of how people today are affect 
+
+# Get latest year's population (2018)
+myLatest_pop <- myWorking %>%
+  filter(year >= 2018)?
+  
+myLatest_pop <- read.csv("Datasets/raw_data/nhgis0011_csv/nhgis0011_ds238_2018_county.csv")
+myLatest_pop <- myLatest_pop[-1,]
+myLatest_pop <- myLatest_pop %>%
+  mutate(fips = paste0(STATEA, COUNTYA)) %>%
+  select(fips, AIUWE001) %>%
+  rename(population_18 = AIUWE001) %>%
+  mutate(population_18 = as.integer(population_18))
+
+myWorking_per_cap_2 <- myWorking %>%
+    filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
+    group_by(fips) %>% # group by county
+    mutate(amount_cum = sum(amount)) %>% # cumulative amount per cap
+    mutate(quantity_cum = sum(got_grant)) %>% # cumulative quantity per cap
+    mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
+    select(state_fips, fips, amount_cum, quantity_cum, avg_med_income_house) %>% # set up reduce down to one entry per county
+    distinct() # reduce
+
+myWorking_per_cap_2 <- left_join(myWorking_per_cap_2, myLatest_pop, "fips")
+
+#ATTENTION! WE DONT HAVE POPULATION FOR EVERY COUNTY. 
+# may need to use 2020 or 2010 census?
+
 ```
+
+
+# Add in defninitions of per caps 
+* how it's been implemented through time
+* snap shot of how individuals have been invested in presently 
+
+
+
+
+
+
+
+
 
 # Original Set Up
 Originally, my explanatory variable of interest is the average percent (through 1965-2018) of non-Hispanic white people in each county. The % of the county that is white comes from the decennial census and the 2018 America community survey.  
