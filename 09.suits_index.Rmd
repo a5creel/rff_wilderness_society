@@ -21,20 +21,24 @@ library(janitor)
 library(dplyr)
 library(zoo)
 library(runner)
+source('09.functions.R')
 ```
 
 Thanks to Matt Ashenfarb for providing helpful code on the suites index. 
 ```{r, include=FALSE, message=FALSE}
+#-------------------------------------------------------------------------------
+# Basic data cleaning
+# Grant amounts are already adjusted for inflation, adjusting median income (2018 dollars)
+#-------------------------------------------------------------------------------
+
 # made in 01.data_wrangle.R
 myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
-
-# Grant amounts are already adjusted for inflation, adjusting median income (2018 dollars)
 
 #Basic data cleaning
 myWorking <- myWorking %>%
   mutate(type = str_sub(type,0,1)) %>% #getting rid of a space 
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
-  filter(!is.na(white_pct)) %>% # getting ride of rows where I couldn't get their demographic data
+  filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
   dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
   mutate(amount = if_else(is.na(amount), 0, amount)) %>%  # adding 0s for amount of grant rewarded
   filter(type != "P") # not including planning grants bc they're given to states, not counties
@@ -45,26 +49,15 @@ myWorking %>%
   distinct() %>%
   summary()
 
-# ALL GRANTS (except planning): ALL YEARS -----------------------------------------------------------------------
 ```
+
+# Add in defninitions of per caps 
+* how it's been implemented through time
+* snap shot of how individuals have been invested in presently 
 
 
 
 ```{r, include=FALSE}
-# Grouping outcome variables by county, cumulative through all time 
-#(number of grants received, amount received, average amount received per capita per decade, avg # grants per 100,000 people)
-
-#cumulative through all years
-myWorking_cum <- myWorking %>%
-    filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
-    group_by(fips) %>% # grouping by county
-    mutate(quantity = sum(got_grant)) %>% #grants through all time
-    mutate(amount = sum(amount, na.rm = TRUE)) %>% # amount through all time
-    mutate(avg_white_ppl= mean(white)) %>% 
-    select(fips, state_fips, quantity, quantity, amount, avg_white_ppl) %>%
-    ungroup() %>%
-    distinct()
-
 # Need to get two different per capital award amounts: per cap on nearest year to award amount (how it's been distributed historically) and per cap on most recent year (snap shot on how current people have been invested in)
 
 #Steps: 
@@ -73,9 +66,10 @@ myWorking_cum <- myWorking %>%
 #2) National Suits for each (line graph)
 #3) Suits for each state (choropleth)
 
-# First per cap: per cap through time aka how it's been implemented through time 
+#-------------------------------------------------------------------------------
+# First per cap: per cap through time aka how it's been implemented through time
+#-------------------------------------------------------------------------------
 myWorking_per_cap_1 <- myWorking %>%
-    filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
     mutate(amount_per_cap = amount / population) %>% # amount per capita each year
     mutate(quantity_per_cap = got_grant/ population) %>% #  quantity per capita each year
     group_by(fips) %>% # group by county
@@ -85,22 +79,20 @@ myWorking_per_cap_1 <- myWorking %>%
     select(state_fips, fips, amount_per_cap_cum, quantity_per_cap_cum, avg_med_income_house) %>% # set up reduce down to one entry per county
     distinct() # reduce
 
+
+#-------------------------------------------------------------------------------
 #Second per cap: per current population aka snapshot of how people today are affect 
+#-------------------------------------------------------------------------------
 
-# Get latest year's population (2018)
-myLatest_pop <- myWorking %>%
-  filter(year >= 2018)?
-  
-myLatest_pop <- read.csv("Datasets/raw_data/nhgis0011_csv/nhgis0011_ds238_2018_county.csv")
-myLatest_pop <- myLatest_pop[-1,]
-myLatest_pop <- myLatest_pop %>%
-  mutate(fips = paste0(STATEA, COUNTYA)) %>%
-  select(fips, AIUWE001) %>%
-  rename(population_18 = AIUWE001) %>%
-  mutate(population_18 = as.integer(population_18))
+myLatest_pop <- read.csv("Datasets/raw_data/co-est2021-alldata.csv") %>%
+  select(STATE, COUNTY, POPESTIMATE2020) %>%
+  mutate(STATE = str_pad(STATE, width = 2, pad ="0")) %>%
+  mutate(COUNTY = str_pad(COUNTY, width = 3, pad = 0)) %>%
+  mutate(fips = paste0(STATE, COUNTY)) %>%
+  rename(pop_2020 = POPESTIMATE2020) %>%
+  select(fips, pop_2020)
 
-myWorking_per_cap_2 <- myWorking %>%
-    filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
+myWorking_per_cap_2.a <- myWorking %>%
     group_by(fips) %>% # group by county
     mutate(amount_cum = sum(amount)) %>% # cumulative amount per cap
     mutate(quantity_cum = sum(got_grant)) %>% # cumulative quantity per cap
@@ -108,17 +100,17 @@ myWorking_per_cap_2 <- myWorking %>%
     select(state_fips, fips, amount_cum, quantity_cum, avg_med_income_house) %>% # set up reduce down to one entry per county
     distinct() # reduce
 
-myWorking_per_cap_2 <- left_join(myWorking_per_cap_2, myLatest_pop, "fips")
+myWorking_per_cap_2 <- left_join(myWorking_per_cap_2.a, myLatest_pop, "fips") %>%
+   mutate(amount_per_cap_cum = amount_cum / pop_2020) %>% # amount per capita in 2020
+    mutate(quantity_per_cap_cum = quantity_cum / pop_2020)  #  quantity per capita in 2020
+  
+test <- getSuits(myWorking_per_cap_2)
 
 #ATTENTION! WE DONT HAVE POPULATION FOR EVERY COUNTY. 
 # may need to use 2020 or 2010 census?
 
 ```
 
-
-# Add in defninitions of per caps 
-* how it's been implemented through time
-* snap shot of how individuals have been invested in presently 
 
 
 
@@ -135,48 +127,26 @@ My outcome variable of interest was originally the total amount of funding and t
 
 ## Suites Index Calculation 
 ```{r}
-# suits index: code from Matt Ashenfarb ---------------
 
-#step one: get proportion of all white people & prop of all LWCF funding (amount) & prop of all LWCF grants (quantity)
-myWorking_cum$white_prop <- myWorking_cum$avg_white_ppl/sum(myWorking_cum$avg_white_ppl)
-myWorking_cum$quantity_prop <- myWorking_cum$quantity/sum(myWorking_cum$quantity)
-myWorking_cum$amount_prop <- myWorking_cum$amount/sum(myWorking_cum$amount)
-
-#step two: sort based on prop of white people (ascending)
-myWorking_cum <- arrange(myWorking_cum, white_prop)
-
-#step three: get cumulative distributions 
-white_cumsum <- sum_run(myWorking_cum$white_prop)
-quantity_cumsum <- sum_run(myWorking_cum$quantity_prop)
-amount_cumsum <- sum_run(myWorking_cum$amount_prop)
-
-# Step four: use trapezoid rule to get area under curve 
-area_L_quantity <- sum(diff(white_cumsum)*rollmean(quantity_cumsum, 2)) ##diff is trap hight and rollmean is (b1+b2)/2
-area_L_amount <- sum(diff(white_cumsum)*rollmean(amount_cumsum, 2)) ##diff is trap hight and rollmean is (b1+b2)/2
-area_K <- .5 # triangle [(0,0), (0,1), (1,1)]
-
-# Step five: calculate suits index 
-suits_index_amount <- (area_K - area_L_amount)/area_K
-suits_index_quantity <- (area_K - area_L_quantity)/area_K
-
-print(paste('Suits index for amount of funding and white:', suits_index_amount))
-print(paste('Suits index for quantity of grants and white:', suits_index_quantity))
+#-------------------------------------------------------------------------------
+# still need to write a function to graph
+#-------------------------------------------------------------------------------
 
 
-myGraphData <- data.frame(white_cumsum, quantity_cumsum, amount_cumsum, myWorking_cum$white_prop)
+myGraphData <- data.frame(income_cumsum, quantity_cumsum, amount_cumsum, df$income_prop)
 
 # Step 6: try to graph
-ggplot(myGraphData, aes(x=white_cumsum, y=quantity_cumsum)) + 
+ggplot(myGraphData, aes(x=income_cumsum, y=amount_cumsum)) + 
   geom_point() +
   ggtitle("Amount", subtitle = "Each point is for a county") +
-  xlab("Cumulative proportion of average % white") + 
+  xlab("Cumulative proportion of avg. median income") + 
   ylab("Cumulative proportions quantity of grants") +
   theme_bw()
 
-ggplot(myGraphData, aes(x=white_cumsum, y=amount_cumsum)) + 
+ggplot(myGraphData, aes(x=income_cumsum, y=quantity_cumsum)) + 
   geom_point() +
   ggtitle("Quantity", subtitle = "Each point is for a county") +
-  xlab("Cumulative proportion of average % white") + 
+  xlab("Cumulative proportion of avg. median income") + 
   ylab("Cumulative proportions of funding") +
   theme_bw()
 
