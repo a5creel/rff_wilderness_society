@@ -51,11 +51,18 @@ myWorking %>%
 
 ```
 
-# Add in defninitions of per caps 
-* how it's been implemented through time
-* snap shot of how individuals have been invested in presently 
+# Set Up and Definitions 
 
+The **outcomes of interest** is how the amount of LWCF funds and quantity of grants are distributed across demographic characteristics of interest. 
 
+**Median household income** for a county is the demographic characteristic focused on in this write up. I use the average median houshold income (averaged from 1965-2018 for each county). 
+
+I use **two different per capita measurements** for the amount of LWCF funds and quantity of grants:
+
+1. Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time
+2. The cumulative amount of funds (or quantity of grants) given to a county from 1965-2018 divided by the population of the county in 2020 (estimates for population of each county is not available for each county in 2018 in the American Community Survey). This captures how individuals today are effected by the LWCF program.
+
+I use per capita metrics for amount of funding and quantity of grants to control for a county's population. 
 
 ```{r, include=FALSE}
 # Need to get two different per capital award amounts: per cap on nearest year to award amount (how it's been distributed historically) and per cap on most recent year (snap shot on how current people have been invested in)
@@ -103,59 +110,44 @@ myWorking_per_cap_2.a <- myWorking %>%
 myWorking_per_cap_2 <- left_join(myWorking_per_cap_2.a, myLatest_pop, "fips") %>%
    mutate(amount_per_cap_cum = amount_cum / pop_2020) %>% # amount per capita in 2020
     mutate(quantity_per_cap_cum = quantity_cum / pop_2020)  #  quantity per capita in 2020
-  
-test <- getSuits(myWorking_per_cap_2)
+rm(myWorking_per_cap_2.a, myLatest_pop)  
 
-#ATTENTION! WE DONT HAVE POPULATION FOR EVERY COUNTY. 
-# may need to use 2020 or 2010 census?
 
 ```
 
+# Nation Picture
 
+### First per capita 
+Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time
 
-
-
-
-
-
-
-
-# Original Set Up
-Originally, my explanatory variable of interest is the average percent (through 1965-2018) of non-Hispanic white people in each county. The % of the county that is white comes from the decennial census and the 2018 America community survey.  
-
-My outcome variable of interest was originally the total amount of funding and the total amount of grants a county gets as a percentage of average % white, **but that doesn't account for population in a county. **
-
-## Suites Index Calculation 
 ```{r}
 
 #-------------------------------------------------------------------------------
-# still need to write a function to graph
+# First per cap: results for nation 
 #-------------------------------------------------------------------------------
 
+myResult_1 <- getSuits(myWorking_per_cap_1)
+printSuits(myResult_1)
+```
 
-myGraphData <- data.frame(income_cumsum, quantity_cumsum, amount_cumsum, df$income_prop)
+### Second per capita 
+The cumulative amount of funds (or quantity of grants) given to a county from 1965-2018 divided by the population of the county in 2020. This captures how individuals today are effected by the LWCF program.
 
-# Step 6: try to graph
-ggplot(myGraphData, aes(x=income_cumsum, y=amount_cumsum)) + 
-  geom_point() +
-  ggtitle("Amount", subtitle = "Each point is for a county") +
-  xlab("Cumulative proportion of avg. median income") + 
-  ylab("Cumulative proportions quantity of grants") +
-  theme_bw()
+```{r}
 
-ggplot(myGraphData, aes(x=income_cumsum, y=quantity_cumsum)) + 
-  geom_point() +
-  ggtitle("Quantity", subtitle = "Each point is for a county") +
-  xlab("Cumulative proportion of avg. median income") + 
-  ylab("Cumulative proportions of funding") +
-  theme_bw()
+#-------------------------------------------------------------------------------
+# First per cap: results for nation 
+#-------------------------------------------------------------------------------
 
-
+myResult_2 <- getSuits(myWorking_per_cap_2)
+printSuits(myResult_2)
 ```
 
 
-## Quick Interprutation 
-Currently, each suits index is showing that the the LWCF policy is *progressive* with respect to people of color. However, I haven't accounted for how average % white may be correlated with population. 
+# State by State Picture
+
+
+
 
 
 
