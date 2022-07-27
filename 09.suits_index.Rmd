@@ -144,11 +144,35 @@ printSuits(myResult_2)
 ```
 
 
-# State by State Picture
+# State by State Picture: Amount
+
+```{r}
+#-------------------------------------------------------------------------------
+# First per cap: results for states
+#-------------------------------------------------------------------------------
+
+#gets vector of fips code
+myStateFips <- myWorking %>%
+  select(state_fips) %>% 
+  distinct()
+myStateFips <- as.character(myStateFips[["state_fips"]])
+
+#Gets list with a dataframe for each state
+df_list <- lapply(myStateFips, getstats)
+getstats<- function(st=x){
+        df <- myWorking_per_cap_1  %>%
+          filter(state_fips == st)
+        return(df)
+}
+ 
+
+#ATTN: Need to get suits index for each state and assign it to a dataframe with state abbrev to make a choropleth map 
 
 
+```
 
 
+# State by State Picture: Quantity
 
 
 <!-- # Ex-Confederate States -->
