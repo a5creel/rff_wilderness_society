@@ -22,6 +22,17 @@ library(dplyr)
 library(zoo)
 library(runner)
 source('09.functions.R')
+
+# ----maps ---- #
+library(choroplethr)
+library(choroplethrMaps)
+library(usdata)
+library(maps)
+data(fips_codes)
+data(continental_us_states)
+data(state.regions)
+
+
 ```
 
 Thanks to Matt Ashenfarb for providing helpful code on the suites index. 
@@ -59,7 +70,7 @@ The **outcomes of interest** is how the amount of LWCF funds and quantity of gra
 
 I use **two different per capita measurements** for the amount of LWCF funds and quantity of grants:
 
-1. Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time
+1. Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time.
 2. The cumulative amount of funds (or quantity of grants) given to a county from 1965-2018 divided by the population of the county in 2020 (estimates for population of each county is not available for each county in 2018 in the American Community Survey). This captures how individuals today are effected by the LWCF program.
 
 I use per capita metrics for amount of funding and quantity of grants to control for a county's population. 
@@ -144,29 +155,74 @@ printSuits(myResult_2)
 ```
 
 
-# State by State Picture: Amount
+# State by State Picture
+
+## First Per Capita Defintion 
+Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time.
 
 ```{r}
 #-------------------------------------------------------------------------------
 # First per cap: results for states
+# DATA PREP
 #-------------------------------------------------------------------------------
 
-#gets vector of fips code
-myStateFips <- myWorking %>%
-  select(state_fips) %>% 
+#gets vector of fips code and state name for map
+fips_codes <- fips_codes %>%
+  select(state_code) %>%
   distinct()
-myStateFips <- as.character(myStateFips[["state_fips"]])
 
-#Gets list with a dataframe for each state
-df_list <- lapply(myStateFips, getstats)
-getstats<- function(st=x){
-        df <- myWorking_per_cap_1  %>%
-          filter(state_fips == st)
-        return(df)
+
+#Gets list of dataframes for each state (applys function to whole list of state fips)
+state_dfs <- lapply(as.character(fips_codes$state_code), function(st=x){
+                      df <- myWorking_per_cap_1  %>%
+                        filter(state_fips == st) %>%
+                        mutate(state_fips = as.character(state_fips))
+                      return(df)
+                      }) 
+
+
+#get a data frame of suits results using function written earlier and list of state dataframes
+myResult_state_1 <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
+colnames(myResult_state_1) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
+for (i in 1:length(state_dfs)) {
+  myResult_state_1[i, 1] <- state_dfs[[i]][1,1] #state fips
+   myResult_state_1[i, 2] <- getSuits(state_dfs[[i]])$Suits_Amount
+     myResult_state_1[i, 3] <- getSuits(state_dfs[[i]])$Suits_Quantity
+
 }
- 
 
-#ATTN: Need to get suits index for each state and assign it to a dataframe with state abbrev to make a choropleth map 
+# drop clean up state_fips codes
+myResult_state_1 <- myResult_state_1 %>%
+  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
+  mutate(state_fips = as.character(state_fips))
+
+```
+
+
+### Amount of Funds 
+
+```{r}
+#-------------------------------------------------------------------------------
+# Make choropleth map of state results for suits index for amount of funding
+#-------------------------------------------------------------------------------
+
+# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
+myMap_amount_1 <- left_join(state.regions, myResult_state_1, by = c("fips.character" = "state_fips"))
+
+
+myMap_amount_1 <- myMap_amount_1 %>%
+  mutate(value = Suits_Amount) %>% #for state_choropleth map call
+  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
+  filter()
+
+state_choropleth(myMap_amount_1, num_colors = 0)  #num_colors = 0 makes it so white is zero
+  # # zoom = continental_us_states) +
+  # scale_fill_brewer(palette="PuOr", direction = -1) +
+  # ggtitle(label = "POC: Top quartile for # grants per capita vs the bottom quartile", 
+  #         subtitle =  "Difference in avg % of POC (top minus bottom)") + 
+  # labs(fill = "Difference in %") +
+  # theme(legend.position="bottom")
+
 
 
 ```

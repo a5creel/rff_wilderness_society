@@ -287,7 +287,6 @@ state_choropleth(myMap_rural,
   labs(fill = "Difference in %") +
   theme(legend.position="bottom")
 
-
 ```
 Interpretation: 
 In CA, the counties that receive the most number grants per capita in a given decade have **10-23% less POC** than counties that receive the least number of grants per capita.
