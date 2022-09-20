@@ -78,6 +78,11 @@ I use **two different per capita measurements** for the amount of LWCF funds and
 
 I use per capita metrics for amount of funding and quantity of grants to control for a county's population. 
 
+## Interprutation of Suits Index
+We can compare the level of "regressivity" or "progressivity" (i.e., suits index) across states. For example, we could say Michigan is more progressive with its LWCF funds than Texas in regards to income. 
+
+However, two states with different income distributions could have the same suits index. For example, Michigan and New Mexico may have different wealth distributions (ie Michigan is on average richer than New Mexico) but have the same suits index.  
+
 ```{r, echo=FALSE}
 # Need to get two different per capital award amounts: per cap on nearest year to award amount (how it's been distributed historically) and per cap on most recent year (snap shot on how current people have been invested in)
 
