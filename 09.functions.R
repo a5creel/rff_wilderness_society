@@ -70,6 +70,7 @@ printSuits <- function(myR){
 
 }
 
+#Rewrote code to get rid of state abbreviation 
 myState_choropleth <- function (df, title = "", legend = "", num_colors = 7, zoom = NULL, reference_map = FALSE) {
     c = StateChoropleth$new(df)
     c$title = title
