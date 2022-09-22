@@ -77,11 +77,14 @@ Originally I used two different per capita measurements for the amount of LWCF f
 1. Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time.
 2. The cumulative amount of funds (or quantity of grants) given to a county from 1965-2018 divided by the population of the county in 2020 (estimates for population of each county is not available for each county in 2018 in the American Community Survey). This captures how individuals today are effected by the LWCF program.
 
-After both per capita metrics returned similar results (stored in commit from Sept 20th, 2022), I used the second definition which can be interpreted as a snapshot of how people are today. 
+After both per capita metrics returned similar results (stored in commit from Sept 20th, 2022), I used the first definition which can be interpreted as how the program has been administered historically. 
 
 I use per capita metrics for amount of funding and quantity of grants to control for a county's population. 
 
-## Interprutation of Suits Index
+## Variable of Interest (X)
+We are interested in the distribution of funds across the county-level demographic characteristics: median income, % POC, % rural. 
+
+## Comparing of Suits Index across states 
 We can compare the level of "regressivity" or "progressivity" (i.e., suits index) across states. For example, we could say Michigan is more progressive with its LWCF funds than Texas in regards to income. 
 
 However, two states with different income distributions could have the same suits index. For example, Michigan and New Mexico may have different wealth distributions (ie Michigan is on average richer than New Mexico) but have the same suits index.  
@@ -100,31 +103,21 @@ However, two states with different income distributions could have the same suit
 #per cap: per current population aka snapshot of how people today are affect 
 #-------------------------------------------------------------------------------
 
-myLatest_pop <- read.csv("Datasets/raw_data/co-est2021-alldata.csv") %>%
-  select(STATE, COUNTY, POPESTIMATE2020) %>%
-  mutate(STATE = str_pad(STATE, width = 2, pad ="0")) %>%
-  mutate(COUNTY = str_pad(COUNTY, width = 3, pad = 0)) %>%
-  mutate(fips = paste0(STATE, COUNTY)) %>%
-  rename(pop_2020 = POPESTIMATE2020) %>%
-  select(fips, pop_2020)
-
-myWorking_per_cap_2.a <- myWorking %>%
+myWorking_per_cap_1 <- myWorking %>%
+    mutate(amount_per_cap = amount / population) %>% # amount per capita each year
+    mutate(quantity_per_cap = got_grant/ population) %>% #  quantity per capita each year
     group_by(fips) %>% # group by county
-    mutate(amount_cum = sum(amount)) %>% # cumulative amount per cap
-    mutate(quantity_cum = sum(got_grant)) %>% # cumulative quantity per cap
+    mutate(amount_per_cap_cum = sum(amount_per_cap)) %>% # cumulative amount per cap
+    mutate(quantity_per_cap_cum = sum(quantity_per_cap)) %>% # cumulative quantity per cap
     mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
-    select(state_fips, fips, amount_cum, quantity_cum, avg_med_income_house) %>% # set up reduce down to one entry per county
+    mutate(avg_poc_pct = mean(poc_pct, na.rm = TRUE)) %>%
+    select(state_fips, fips, amount_cum, quantity_cum, avg_med_income_house, avg_poc_pct, poc_population) %>% # set up reduce down to one entry per county
     distinct() # reduce
-
-myWorking_per_cap_2 <- left_join(myWorking_per_cap_2.a, myLatest_pop, "fips") %>%
-   mutate(amount_per_cap_cum = amount_cum / pop_2020) %>% # amount per capita in 2020
-    mutate(quantity_per_cap_cum = quantity_cum / pop_2020)  #  quantity per capita in 2020
-rm(myWorking_per_cap_2.a, myLatest_pop)  
-
 
 ```
 
 # Income 
+We treat each county as a rep agent of their population with their average median income. Makes sense to be per cap here. 
 
 ##Nation Picture
 
@@ -134,8 +127,8 @@ rm(myWorking_per_cap_2.a, myLatest_pop)
 # results for nation 
 #-------------------------------------------------------------------------------
 
-myResult_2 <- getSuits(myWorking_per_cap_2)
-printSuits(myResult_2)
+myResult <- getSuits(myWorking_per_cap, x_axis = "POC")
+printSuits(myResult, x_axis = "POC")
 ```
 
 
@@ -152,8 +145,8 @@ fips_codes <- fips_codes %>%
   distinct()
 
 #Gets list of dataframes for each state (applys function to whole list of state fips)
-state_dfs_2 <- lapply(as.character(fips_codes$state_code), function(st=x){
-                      df <- myWorking_per_cap_2  %>%
+state_dfs <- lapply(as.character(fips_codes$state_code), function(st=x){
+                      df <- myWorking_per_cap  %>%
                         filter(state_fips == st) %>%
                         mutate(state_fips = as.character(state_fips))
                       return(df)
@@ -161,17 +154,17 @@ state_dfs_2 <- lapply(as.character(fips_codes$state_code), function(st=x){
 
 
 #get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state_2 <- data.frame(matrix(ncol=3, nrow = length(state_dfs_2)))
-colnames(myResult_state_2) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
-for (i in 1:length(state_dfs_2)) {
-  myResult_state_2[i, 1] <- state_dfs_2[[i]][1,1] #state fips
-   myResult_state_2[i, 2] <- getSuits(state_dfs_2[[i]])$Suits_Amount
-     myResult_state_2[i, 3] <- getSuits(state_dfs_2[[i]])$Suits_Quantity
+myResult_state <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
+colnames(myResult_state) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
+for (i in 1:length(state_dfs)) {
+  myResult_state[i, 1] <- state_dfs[[i]][1,1] #state fips
+   myResult_state[i, 2] <- getSuits_inc(state_dfs[[i]])$Suits_Amount
+     myResult_state[i, 3] <- getSuits_inc(state_dfs[[i]])$Suits_Quantity
 
 }
 
 # drop clean up state_fips codes
-myResult_state_2 <- myResult_state_2 %>%
+myResult_state <- myResult_state %>%
   mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
   mutate(state_fips = as.character(state_fips))
 
@@ -187,13 +180,13 @@ myResult_state_2 <- myResult_state_2 %>%
 #-------------------------------------------------------------------------------
 
 # state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
-myMap_amount_2 <- left_join(state.regions, myResult_state_2, by = c("fips.character" = "state_fips")) %>%
+myMap_amount <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
   mutate(value = Suits_Amount) %>% #for state_choropleth map call
   mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
   filter()
 
 #rewrote the state_choropleth function a bit to get rid of state label
-myState_choropleth(myMap_amount_2, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
+myState_choropleth(myMap_amount, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
   ggtitle(label = "Suits indexes varries state to state despite being progessive nationally",
           subtitle =  "Amount of funding per capita compared to avg. median household income (aggregated at county level)") +
   theme(legend.position="bottom")
@@ -210,19 +203,47 @@ myState_choropleth(myMap_amount_2, num_colors = 0, legend = "Suits Index" ) +  #
 # same code as above with my revisous 
 #-------------------------------------------------------------------------------
 
-myMap_quantity_2 <- left_join(state.regions, myResult_state_2, by = c("fips.character" = "state_fips")) %>%
+myMap_quantity <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
   mutate(value = Suits_Quantity) %>% #REVISION
   mutate(value = if_else(is.na(value), 0, value)) %>% 
   filter()
 
-myState_choropleth(myMap_quantity_2, num_colors = 0, legend = "Suits Index" ) +  
+myState_choropleth(myMap_quantity, num_colors = 0, legend = "Suits Index" ) +  
   ggtitle(label = "Suits indexes for quantity of grants is progessive in most states",
           subtitle =  "Quantity of grants per capita compared to avg. median household income (aggregated at county level)") +
   theme(legend.position="bottom") 
 
 ```
 
-# Population of Color 
+# Population of Color
+
+
+```{r, echo=FALSE}
+
+#Steps: 
+#1) Need cumulative proportion of people of color currently (to be consistent with this defn of per capita)
+#1.5) Set up cumulative prop of POC 
+#2) National Suits for each (line graph)
+#3) Suits for each state (choropleth)
+
+
+#-------------------------------------------------------------------------------
+#per cap: per current population aka snapshot of how people today are affect 
+#-------------------------------------------------------------------------------
+
+myResult_poc <- getSuits_poc(myWorking) #ATTN need to get this down to fewer 
+printSuits(myResult_poc, x_axis = "POC")
+
+
+
+```
+
+## National Picture 
+
+
+
+
+
 
 
 # Conclusions 
