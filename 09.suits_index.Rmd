@@ -70,9 +70,7 @@ myWorking %>%
 
 The **outcomes of interest** is how the amount of LWCF funds and quantity of grants are distributed across demographic characteristics of interest. 
 
-**Median household income** for a county is the demographic characteristic focused on in this write up. I use the average median household income (averaged from 1965-2018 for each county). 
-
-Originally I used two different per capita measurements for the amount of LWCF funds and quantity of grantsL
+Originally I used two different per capita measurements for the amount of LWCF funds and quantity of grants.
 
 1. Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time.
 2. The cumulative amount of funds (or quantity of grants) given to a county from 1965-2018 divided by the population of the county in 2020 (estimates for population of each county is not available for each county in 2018 in the American Community Survey). This captures how individuals today are effected by the LWCF program.
@@ -81,29 +79,34 @@ After both per capita metrics returned similar results (stored in commit from Se
 
 I use per capita metrics for amount of funding and quantity of grants to control for a county's population. 
 
-## Variable of Interest (X)
-We are interested in the distribution of funds across the county-level demographic characteristics: median income, % POC, % rural. 
+## Demographics of Interest (x axis)
+We are interested in the distribution of funds across three county-level demographic characteristics: median income, % POC, % rural. 
+
+**Average median household income**: the median household income (averaged from 1965-2018 for each county). 
+
+**Average percent people of color**: the percent of people in a color who are not non-Hispanic white (averaged from 1965-2018 for each county). 
+
+**Average percent rural**: not done yet.
 
 ## Comparing of Suits Index across states 
 We can compare the level of "regressivity" or "progressivity" (i.e., suits index) across states. For example, we could say Michigan is more progressive with its LWCF funds than Texas in regards to income. 
 
 However, two states with different income distributions could have the same suits index. For example, Michigan and New Mexico may have different wealth distributions (ie Michigan is on average richer than New Mexico) but have the same suits index.  
 
+## The sign of the suits index 
+Suits indices are traditionally used to evaluate if a **tax** is progressive or regressive. A positive suits index is a progressive tax. The suits index is **typically** calculated as [(area under the neutral line) - (area under Lorenz curve)] / (area under the neutral line). 
+
+The LWCF is a **subsidy** program. To keep signs consistent with "progressive" or "regressive" **I calculated the suits index as [(area under  Lorenz curve) - (area under the neutral line)] / (area under the neutral line)**.
+
+**A positive suits index in our study indicates a progressive subsidy (least privileged get helped the most). A negative suits index indicates a regressive subsidy.**
+
 ```{r, echo=FALSE}
-# Need to get two different per capital award amounts: per cap on nearest year to award amount (how it's been distributed historically) and per cap on most recent year (snap shot on how current people have been invested in)
-
-#Steps: 
-#1) Set up the two different per caps 
-#1.5) Set up median income on X axis instead of % race (maybe write function where we can say variable on X, and give it the dataset (ex, just MTs dataset) so that this can be neater and quicker)
-#2) National Suits for each (line graph)
-#3) Suits for each state (choropleth)
-
 
 #-------------------------------------------------------------------------------
-#per cap: per current population aka snapshot of how people today are affect 
+#per cap: per cap through time aka how it's been implemented through time
 #-------------------------------------------------------------------------------
 
-myWorking_per_cap_1 <- myWorking %>%
+myWorking_per_cap <- myWorking %>%
     mutate(amount_per_cap = amount / population) %>% # amount per capita each year
     mutate(quantity_per_cap = got_grant/ population) %>% #  quantity per capita each year
     group_by(fips) %>% # group by county
@@ -111,15 +114,14 @@ myWorking_per_cap_1 <- myWorking %>%
     mutate(quantity_per_cap_cum = sum(quantity_per_cap)) %>% # cumulative quantity per cap
     mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
     mutate(avg_poc_pct = mean(poc_pct, na.rm = TRUE)) %>%
-    select(state_fips, fips, amount_cum, quantity_cum, avg_med_income_house, avg_poc_pct, poc_population) %>% # set up reduce down to one entry per county
+    select(state_fips, fips, amount_per_cap_cum, quantity_per_cap_cum, avg_med_income_house, avg_poc_pct) %>% # set up reduce down to one entry per county
     distinct() # reduce
 
 ```
 
 # Income 
-We treat each county as a rep agent of their population with their average median income. Makes sense to be per cap here. 
 
-##Nation Picture
+## Nation Picture
 
 ```{r, echo=FALSE, message=FALSE}
 
@@ -127,10 +129,13 @@ We treat each county as a rep agent of their population with their average media
 # results for nation 
 #-------------------------------------------------------------------------------
 
-myResult <- getSuits(myWorking_per_cap, x_axis = "POC")
-printSuits(myResult, x_axis = "POC")
+myResult <- getSuits(myWorking_per_cap, x_axis = "Income")
+printSuits(myResult, x_axis = "Income")
 ```
 
+Interpretation note: makes sense that it's more progressive in quantity of grants administered than in amount of funds because of matching. We'd expect poorer counties to get smaller grants because they have less access to money for matching. 
+
+I believe this. 
 
 ## State by State Picture
 
@@ -158,8 +163,8 @@ myResult_state <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
 colnames(myResult_state) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
 for (i in 1:length(state_dfs)) {
   myResult_state[i, 1] <- state_dfs[[i]][1,1] #state fips
-   myResult_state[i, 2] <- getSuits_inc(state_dfs[[i]])$Suits_Amount
-     myResult_state[i, 3] <- getSuits_inc(state_dfs[[i]])$Suits_Quantity
+   myResult_state[i, 2] <- getSuits(state_dfs[[i]])$Suits_Amount
+     myResult_state[i, 3] <- getSuits(state_dfs[[i]])$Suits_Quantity
 
 }
 
@@ -172,7 +177,7 @@ myResult_state <- myResult_state %>%
 
 
 ### Amount of Funds 
-**The more negative a state, the more progressive of a policy.**
+
 
 ```{r, echo=FALSE}
 #-------------------------------------------------------------------------------
@@ -217,36 +222,89 @@ myState_choropleth(myMap_quantity, num_colors = 0, legend = "Suits Index" ) +
 
 # Population of Color
 
+## National Picture 
 
 ```{r, echo=FALSE}
 
-#Steps: 
-#1) Need cumulative proportion of people of color currently (to be consistent with this defn of per capita)
-#1.5) Set up cumulative prop of POC 
-#2) National Suits for each (line graph)
-#3) Suits for each state (choropleth)
-
-
-#-------------------------------------------------------------------------------
-#per cap: per current population aka snapshot of how people today are affect 
-#-------------------------------------------------------------------------------
-
-myResult_poc <- getSuits_poc(myWorking) #ATTN need to get this down to fewer 
+myResult_poc <- getSuits(myWorking_per_cap, x_axis = "POC")
 printSuits(myResult_poc, x_axis = "POC")
+
+```
+
+## State-by-State Picture 
+
+```{r, echo=FALSE, message=FALSE}
+#-------------------------------------------------------------------------------
+# results for states
+# DATA PREP
+#-------------------------------------------------------------------------------
+
+#get a data frame of suits results using function written earlier and list of state dataframes
+myResult_state_poc <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
+colnames(myResult_state_poc) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
+for (i in 1:length(state_dfs)) {
+  myResult_state_poc[i, 1] <- state_dfs[[i]][1,1] #state fips
+   myResult_state_poc[i, 2] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Amount
+     myResult_state_poc[i, 3] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Quantity
+
+}
+
+# drop clean up state_fips codes
+myResult_state_poc <- myResult_state_poc %>%
+  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
+  mutate(state_fips = as.character(state_fips))
+
+```
+
+### Amount of Funds 
+
+
+```{r, echo=FALSE}
+#-------------------------------------------------------------------------------
+# Make choropleth map of state results for suits index for amount of funding
+#-------------------------------------------------------------------------------
+
+# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
+myMap_amount_poc <- left_join(state.regions, myResult_state_poc, by = c("fips.character" = "state_fips")) %>%
+  mutate(value = Suits_Amount) %>% #for state_choropleth map call
+  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
+  filter()
+
+#rewrote the state_choropleth function a bit to get rid of state label
+myState_choropleth(myMap_amount_poc, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
+  ggtitle(label = "Suits indexes are regressive when it comes to amount of funds for people of color",
+          subtitle =  "Amount of funding per capita compared to avg. % poc (aggregated at county level)") +
+  theme(legend.position="bottom")
 
 
 
 ```
 
-## National Picture 
+### Quantity of Grants
 
+```{r, echo=FALSE}
+#-------------------------------------------------------------------------------
+# Make choropleth map of state results for suits index for quantity of grants
+# same code as above with my revisions 
+#-------------------------------------------------------------------------------
 
+myMap_quantity_poc <- left_join(state.regions, myResult_state_poc, by = c("fips.character" = "state_fips")) %>%
+  mutate(value = Suits_Quantity) %>% #REVISION
+  mutate(value = if_else(is.na(value), 0, value)) %>% 
+  filter()
 
+myState_choropleth(myMap_quantity_poc, num_colors = 0, legend = "Suits Index" ) +  
+  ggtitle(label = "Suits indexes are regressive when it comes quantity received by people of color",
+          subtitle =  "Quantity of grants per capita compared to avg. % of POC (aggregated at county level)") +
+  theme(legend.position="bottom") 
 
+```
 
 
 
 # Conclusions 
+
 * LWCF seems pretty progressive with regards to income 
+* LWCF seems very regression when it comes to % POC. This matches up with what we say in the quartile study.
 
 
