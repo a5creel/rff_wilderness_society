@@ -25,6 +25,8 @@ library(dplyr)
 library(zoo)
 library(runner)
 source('09.functions.R')
+library(fixest)
+library(kableExtra)
 
 # ----maps ---- #
 library(choroplethr)
@@ -484,6 +486,120 @@ myState_choropleth(myMap_quantity_rural, num_colors = 0, legend = "Suits Index" 
 
 ```
 
+
+
+
+# Regressions 
+
+## Amount
+
+```{r, echo = FALSE}
+
+#-------------------------------------------------------------------------------
+# regressions with the exact same dataset used for the suits indices
+#-------------------------------------------------------------------------------
+
+
+one <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct)
+two <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct)
+three <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
+four <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI)
+five <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI | state_fips)
+
+etable(one,
+       two,
+       three,
+       four,
+       five,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+#include a variable for political affiliation? 
+# county size ??
+
+#-------------------------------------------------------------------------------
+# not cumulative per person, we're keeping year in this 
+#-------------------------------------------------------------------------------
+
+myWorking_not_cumulative <- myWorking %>%
+    mutate(amount_per_cap = amount / population) %>% # amount per capita each year
+    mutate(quantity_per_10000 = (got_grant/ population)*10000) %>%
+  select(amount_per_cap, quantity_per_10000, med_income_house, poc_pct, rural_pct, state_fips, year) %>%
+  distinct()
+
+one.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct)
+two.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct)
+three.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house)
+# four.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house + ZHVI)
+five.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house | state_fips)
+six.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house | state_fips + year)
+
+etable(one.t,
+       two.t,
+       three.t,
+       # four.t,
+       five.t,
+       six.t,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
+
+## Quantity 
+```{r, echo = FALSE}
+
+#-------------------------------------------------------------------------------
+# regressions with the exact same dataset used for the suits indices
+#-------------------------------------------------------------------------------
+
+myWorking_per_cap.reg <- myWorking_per_cap %>%
+  mutate(quantity_per_10000_cum = quantity_per_cap_cum*10000)
+
+one <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct)
+two <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct)
+three <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
+four <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI)
+five <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI | state_fips)
+
+etable(one,
+       two,
+       three,
+       four,
+       five,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+#include a variable for political affiliation? 
+# county size ??
+
+#-------------------------------------------------------------------------------
+# not cumulative per person, we're keeping year in this 
+#-------------------------------------------------------------------------------
+
+
+one.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct)
+two.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct)
+three.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house)
+# four.t <- feols(data = myWorking_not_cumulative, quantity_per_cap ~  poc_pct + rural_pct + med_income_house + ZHVI)
+five.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house | state_fips)
+six.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house | state_fips + year)
+
+etable(one.t,
+       two.t,
+       three.t,
+       # four.t,
+       five.t,
+       six.t,
+       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+  kbl(booktabs = T, caption = "Race") %>%
+  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+
+
+```
 
 
 # Conclusions 
