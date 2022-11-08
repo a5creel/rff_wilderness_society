@@ -53,12 +53,17 @@ myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv
 
 #Basic data cleaning
 myWorking <- myWorking %>%
+  filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
   mutate(type = str_sub(type,0,1)) %>% #getting rid of a space 
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
   filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
   dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
   mutate(amount = if_else(is.na(amount), 0, amount)) %>%  # adding 0s for amount of grant rewarded
-  filter(type != "P") # not including planning grants bc they're given to states, not counties
+  group_by(fips, year) %>%
+  mutate(amount = sum(amount)) %>% #total amount a county got in a single year
+  # mutate(got_grant = sum(got_grant)) %>%  #total quantity of grants a county got in a single year 
+  select(-type) %>% # dropping rows for counties that got multiple grants in the same year
+  distinct()
 
 # working years: 1965-2018
 myWorking %>%
@@ -70,16 +75,16 @@ myWorking %>%
 
 # Set Up and Definitions 
 
-The **outcomes of interest** is how the amount of LWCF funds and quantity of grants are distributed across demographic characteristics of interest. 
+The **outcomes of interest** is how the total amount of LWCF funds is distributed across demographic characteristics of interest. 
 
-Originally I used two different per capita measurements for the amount of LWCF funds and quantity of grants.
+Originally I used two different per capita measurements for the amount of LWCF funds.
 
-1. Funds (or quantity of grants) given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time.
-2. The cumulative amount of funds (or quantity of grants) given to a county from 1965-2018 divided by the population of the county in 2020 (estimates for population of each county is not available for each county in 2018 in the American Community Survey). This captures how individuals today are effected by the LWCF program.
+1. Funds given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time.
+2. The cumulative amount of funds given to a county from 1965-2018 divided by the population of the county in 2020 (estimates for population of each county is not available for each county in 2018 in the American Community Survey). This captures how individuals today are effected by the LWCF program.
 
 After both per capita metrics returned similar results (stored in commit from Sept 20th, 2022), I used the first definition which can be interpreted as how the program has been administered historically. 
 
-I use per capita metrics for amount of funding and quantity of grants to control for a county's population. 
+I use per capita metrics for amount of funding to control for a county's population. 
 
 ## Demographics of Interest (x axis)
 We are interested in the distribution of funds across three county-level demographic characteristics: median income, % POC, % rural. 
@@ -112,14 +117,14 @@ The LWCF is a **subsidy** program. To keep signs consistent with "progressive" o
 
 myWorking_per_cap <- myWorking %>%
     mutate(amount_per_cap = amount / population) %>% # amount per capita each year
-    mutate(quantity_per_cap = got_grant/ population) %>% #  quantity per capita each year
+    # mutate(quantity_per_cap = got_grant/ population) %>% #  quantity per capita each year
     group_by(fips) %>% # group by county
-    mutate(amount_per_cap_cum = sum(amount_per_cap)) %>% # cumulative amount per cap
-    mutate(quantity_per_cap_cum = sum(quantity_per_cap)) %>% # cumulative quantity per cap
+    mutate(amount_per_cap_cum = sum(amount_per_cap)) %>% # total amount per cap
+    # mutate(quantity_per_cap_cum = sum(quantity_per_cap)) %>% # total quantity per cap
     mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
     mutate(avg_poc_pct = mean(poc_pct, na.rm = TRUE)) %>%
     mutate(avg_rural_pct = mean(rural_pct, na.rm = TRUE)) %>%
-    select(state_fips, fips, amount_per_cap_cum, quantity_per_cap_cum, avg_med_income_house, avg_poc_pct, avg_rural_pct) %>% # set up reduce down to one entry per county
+    select(state_fips, fips, amount_per_cap_cum, avg_med_income_house, avg_poc_pct, avg_rural_pct) %>% # set up reduce down to one entry per county
     distinct() # reduce
 
 #-------------------------------------------------------------------------------
@@ -153,9 +158,7 @@ myResult <- getSuits(myWorking_per_cap, x_axis = "Income")
 printSuits(myResult, x_axis = "Income")
 ```
 
-Interpretation note: makes sense that it's more progressive in quantity of grants administered than in amount of funds because of matching. We'd expect poorer counties to get smaller grants because they have less access to money for matching. 
 
-I believe this. 
 
 ## State by State Picture
 
@@ -179,12 +182,12 @@ state_dfs <- lapply(as.character(fips_codes$state_code), function(st=x){
 
 
 #get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
-colnames(myResult_state) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
+myResult_state <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+colnames(myResult_state) <- c("state_fips", "Suits_Amount" )
 for (i in 1:length(state_dfs)) {
   myResult_state[i, 1] <- state_dfs[[i]][1,1] #state fips
    myResult_state[i, 2] <- getSuits(state_dfs[[i]])$Suits_Amount
-     myResult_state[i, 3] <- getSuits(state_dfs[[i]])$Suits_Quantity
+     # myResult_state[i, 3] <- getSuits(state_dfs[[i]])$Suits_Quantity
 
 }
 
@@ -223,20 +226,20 @@ myState_choropleth(myMap_amount, num_colors = 0, legend = "Suits Index" ) +  #nu
 ### Quantity of Grants
 
 ```{r, echo=FALSE}
-#-------------------------------------------------------------------------------
-# Make choropleth map of state results for suits index for quantity of grants
-# same code as above with my revisous 
-#-------------------------------------------------------------------------------
-
-myMap_quantity <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Quantity) %>% #REVISION
-  mutate(value = if_else(is.na(value), 0, value)) %>% 
-  filter()
-
-myState_choropleth(myMap_quantity, num_colors = 0, legend = "Suits Index" ) +  
-  ggtitle(label = "Suits indexes for quantity of grants is progessive in most states",
-          subtitle =  "Quantity of grants per capita compared to avg. median household income (aggregated at county level)") +
-  theme(legend.position="bottom") 
+# #-------------------------------------------------------------------------------
+# # Make choropleth map of state results for suits index for quantity of grants
+# # same code as above with my revisous 
+# #-------------------------------------------------------------------------------
+# 
+# myMap_quantity <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
+#   mutate(value = Suits_Quantity) %>% #REVISION
+#   mutate(value = if_else(is.na(value), 0, value)) %>% 
+#   filter()
+# 
+# myState_choropleth(myMap_quantity, num_colors = 0, legend = "Suits Index" ) +  
+#   ggtitle(label = "Suits indexes for quantity of grants is progessive in most states",
+#           subtitle =  "Quantity of grants per capita compared to avg. median household income (aggregated at county level)") +
+#   theme(legend.position="bottom") 
 
 ```
 
@@ -261,12 +264,12 @@ Interpretation note: typical home value nor income is explaining the discriminat
 ```{r, echo=FALSE, message=FALSE}
 
 #get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state_wealth <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
-colnames(myResult_state_wealth) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
+myResult_state_wealth <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+colnames(myResult_state_wealth) <- c("state_fips", "Suits_Amount" )
 for (i in 1:length(state_dfs)) {
   myResult_state_wealth[i, 1] <- state_dfs[[i]][1,1] #state fips
    myResult_state_wealth[i, 2] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Amount
-     myResult_state_wealth[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Quantity
+     # myResult_state_wealth[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Quantity
 
 }
 
@@ -302,23 +305,23 @@ myState_choropleth(myMap_amount_wealth, num_colors = 0, legend = "Suits Index" )
 
 ```
 
-### Quantity of Grants
+<!-- ### Quantity of Grants -->
 
 ```{r, echo=FALSE}
-#-------------------------------------------------------------------------------
-# Make choropleth map of state results for suits index for quantity of grants
-# same code as above with my revisous 
-#-------------------------------------------------------------------------------
-
-myMap_quantity_wealth <- left_join(state.regions, myResult_state_wealth, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Quantity) %>% #REVISION
-  mutate(value = if_else(is.na(value), 0, value)) %>% 
-  filter()
-
-myState_choropleth(myMap_quantity_wealth, num_colors = 0, legend = "Suits Index" ) +  
-  ggtitle(label = "Suits indexes for quantity of grants is progessive in most states",
-          subtitle =  "Quantity of grants per capita compared to typical home value (aggregated at county level)") +
-  theme(legend.position="bottom") 
+# #-------------------------------------------------------------------------------
+# # Make choropleth map of state results for suits index for quantity of grants
+# # same code as above with my revisous 
+# #-------------------------------------------------------------------------------
+# 
+# myMap_quantity_wealth <- left_join(state.regions, myResult_state_wealth, by = c("fips.character" = "state_fips")) %>%
+#   mutate(value = Suits_Quantity) %>% #REVISION
+#   mutate(value = if_else(is.na(value), 0, value)) %>% 
+#   filter()
+# 
+# myState_choropleth(myMap_quantity_wealth, num_colors = 0, legend = "Suits Index" ) +  
+#   ggtitle(label = "Suits indexes for quantity of grants is progessive in most states",
+#           subtitle =  "Quantity of grants per capita compared to typical home value (aggregated at county level)") +
+#   theme(legend.position="bottom") 
 
 ```
 
@@ -346,12 +349,12 @@ printSuits(myResult_poc, x_axis = "POC")
 #-------------------------------------------------------------------------------
 
 #get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state_poc <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
-colnames(myResult_state_poc) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
+myResult_state_poc <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+colnames(myResult_state_poc) <- c("state_fips", "Suits_Amount")
 for (i in 1:length(state_dfs)) {
   myResult_state_poc[i, 1] <- state_dfs[[i]][1,1] #state fips
    myResult_state_poc[i, 2] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Amount
-     myResult_state_poc[i, 3] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Quantity
+     # myResult_state_poc[i, 3] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Quantity
 
 }
 
@@ -386,23 +389,23 @@ myState_choropleth(myMap_amount_poc, num_colors = 0, legend = "Suits Index" ) + 
 
 ```
 
-### Quantity of Grants
+<!-- ### Quantity of Grants -->
 
 ```{r, echo=FALSE}
-#-------------------------------------------------------------------------------
-# Make choropleth map of state results for suits index for quantity of grants
-# same code as above with my revisions 
-#-------------------------------------------------------------------------------
-
-myMap_quantity_poc <- left_join(state.regions, myResult_state_poc, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Quantity) %>% #REVISION
-  mutate(value = if_else(is.na(value), 0, value)) %>% 
-  filter()
-
-myState_choropleth(myMap_quantity_poc, num_colors = 0, legend = "Suits Index" ) +  
-  ggtitle(label = "Suits indexes are regressive when it comes quantity received by people of color",
-          subtitle =  "Quantity of grants per capita compared to avg. % of POC (aggregated at county level)") +
-  theme(legend.position="bottom") 
+# #-------------------------------------------------------------------------------
+# # Make choropleth map of state results for suits index for quantity of grants
+# # same code as above with my revisions 
+# #-------------------------------------------------------------------------------
+# 
+# myMap_quantity_poc <- left_join(state.regions, myResult_state_poc, by = c("fips.character" = "state_fips")) %>%
+#   mutate(value = Suits_Quantity) %>% #REVISION
+#   mutate(value = if_else(is.na(value), 0, value)) %>% 
+#   filter()
+# 
+# myState_choropleth(myMap_quantity_poc, num_colors = 0, legend = "Suits Index" ) +  
+#   ggtitle(label = "Suits indexes are regressive when it comes quantity received by people of color",
+#           subtitle =  "Quantity of grants per capita compared to avg. % of POC (aggregated at county level)") +
+#   theme(legend.position="bottom") 
 
 ```
 
@@ -416,6 +419,7 @@ myResult_rural <- getSuits(myWorking_per_cap, x_axis = "Rural")
 printSuits(myResult_rural, x_axis = "Rural")
 
 ```
+This could be driving by states with more urban areas getting more funds, but then within those states their relatively rural counties get more funding (look at state map)
 
 ## State-by-State Picture 
 
@@ -426,12 +430,12 @@ printSuits(myResult_rural, x_axis = "Rural")
 #-------------------------------------------------------------------------------
 
 #get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state_rural <- data.frame(matrix(ncol=3, nrow = length(state_dfs)))
-colnames(myResult_state_rural) <- c("state_fips", "Suits_Amount", "Suits_Quantity" )
+myResult_state_rural <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+colnames(myResult_state_rural) <- c("state_fips", "Suits_Amount")
 for (i in 1:length(state_dfs)) {
   myResult_state_rural[i, 1] <- state_dfs[[i]][1,1] #state fips
    myResult_state_rural[i, 2] <- getSuits(state_dfs[[i]], x_axis = "Rural")$Suits_Amount
-     myResult_state_rural[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Rural")$Suits_Quantity
+     # myResult_state_rural[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Rural")$Suits_Quantity
 
 }
 
@@ -466,23 +470,25 @@ myState_choropleth(myMap_amount_rural, num_colors = 0, legend = "Suits Index" ) 
 
 ```
 
-### Quantity of Grants
+
+
+<!-- ### Quantity of Grants -->
 
 ```{r, echo=FALSE}
-#-------------------------------------------------------------------------------
-# Make choropleth map of state results for suits index for quantity of grants
-# same code as above with my revisions 
-#-------------------------------------------------------------------------------
-
-myMap_quantity_rural <- left_join(state.regions, myResult_state_rural, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Quantity) %>% #REVISION
-  mutate(value = if_else(is.na(value), 0, value)) %>% 
-  filter()
-
-myState_choropleth(myMap_quantity_rural, num_colors = 0, legend = "Suits Index" ) +  
-  ggtitle(label = "Suits indexes are mixed for quantity received by rural counties",
-          subtitle =  "Quantity of grants per capita compared to avg. % rural (aggregated at county level)") +
-  theme(legend.position="bottom") 
+# #-------------------------------------------------------------------------------
+# # Make choropleth map of state results for suits index for quantity of grants
+# # same code as above with my revisions 
+# #-------------------------------------------------------------------------------
+# 
+# myMap_quantity_rural <- left_join(state.regions, myResult_state_rural, by = c("fips.character" = "state_fips")) %>%
+#   mutate(value = Suits_Quantity) %>% #REVISION
+#   mutate(value = if_else(is.na(value), 0, value)) %>% 
+#   filter()
+# 
+# myState_choropleth(myMap_quantity_rural, num_colors = 0, legend = "Suits Index" ) +  
+#   ggtitle(label = "Suits indexes are mixed for quantity received by rural counties",
+#           subtitle =  "Quantity of grants per capita compared to avg. % rural (aggregated at county level)") +
+#   theme(legend.position="bottom") 
 
 ```
 
@@ -503,13 +509,12 @@ myState_choropleth(myMap_quantity_rural, num_colors = 0, legend = "Suits Index" 
 one <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct)
 two <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct)
 three <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
-four <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI)
-five <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI | state_fips)
+# four <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI)
+five <- feols(data = myWorking_per_cap, amount_per_cap_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house | state_fips)
 
 etable(one,
        two,
        three,
-       four,
        five,
        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
   kbl(booktabs = T, caption = "Race") %>%
@@ -518,85 +523,85 @@ etable(one,
 #include a variable for political affiliation? 
 # county size ??
 
-#-------------------------------------------------------------------------------
-# not cumulative per person, we're keeping year in this 
-#-------------------------------------------------------------------------------
-
-myWorking_not_cumulative <- myWorking %>%
-    mutate(amount_per_cap = amount / population) %>% # amount per capita each year
-    mutate(quantity_per_10000 = (got_grant/ population)*10000) %>%
-  select(amount_per_cap, quantity_per_10000, med_income_house, poc_pct, rural_pct, state_fips, year) %>%
-  distinct()
-
-one.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct)
-two.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct)
-three.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house)
-# four.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house + ZHVI)
-five.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house | state_fips)
-six.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house | state_fips + year)
-
-etable(one.t,
-       two.t,
-       three.t,
-       # four.t,
-       five.t,
-       six.t,
-       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
-  kbl(booktabs = T, caption = "Race") %>%
-  kable_styling(latex_options = c("scale_down","HOLD_position")) 
-
+# #-------------------------------------------------------------------------------
+# # not cumulative per person, we're keeping year in this 
+# #-------------------------------------------------------------------------------
+# 
+# myWorking_not_cumulative <- myWorking %>%
+#     mutate(amount_per_cap = amount / population) %>% # amount per capita each year
+#     mutate(quantity_per_10000 = (got_grant/ population)*10000) %>%
+#   select(amount_per_cap, quantity_per_10000, med_income_house, poc_pct, rural_pct, state_fips, year) %>%
+#   distinct()
+# 
+# one.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct)
+# two.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct)
+# three.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house)
+# # four.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house + ZHVI)
+# five.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house | state_fips)
+# six.t <- feols(data = myWorking_not_cumulative, amount_per_cap ~  poc_pct + rural_pct + med_income_house | state_fips + year)
+# 
+# etable(one.t,
+#        two.t,
+#        three.t,
+#        # four.t,
+#        five.t,
+#        six.t,
+#        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+#   kbl(booktabs = T, caption = "Race") %>%
+#   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+# 
 
 ```
 
-## Quantity 
+<!-- ## Quantity  -->
 ```{r, echo = FALSE}
-
-#-------------------------------------------------------------------------------
-# regressions with the exact same dataset used for the suits indices
-#-------------------------------------------------------------------------------
-
-myWorking_per_cap.reg <- myWorking_per_cap %>%
-  mutate(quantity_per_10000_cum = quantity_per_cap_cum*10000)
-
-one <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct)
-two <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct)
-three <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
-four <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI)
-five <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI | state_fips)
-
-etable(one,
-       two,
-       three,
-       four,
-       five,
-       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
-  kbl(booktabs = T, caption = "Race") %>%
-  kable_styling(latex_options = c("scale_down","HOLD_position")) 
-
-#include a variable for political affiliation? 
-# county size ??
-
-#-------------------------------------------------------------------------------
-# not cumulative per person, we're keeping year in this 
-#-------------------------------------------------------------------------------
-
-
-one.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct)
-two.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct)
-three.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house)
-# four.t <- feols(data = myWorking_not_cumulative, quantity_per_cap ~  poc_pct + rural_pct + med_income_house + ZHVI)
-five.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house | state_fips)
-six.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house | state_fips + year)
-
-etable(one.t,
-       two.t,
-       three.t,
-       # four.t,
-       five.t,
-       six.t,
-       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
-  kbl(booktabs = T, caption = "Race") %>%
-  kable_styling(latex_options = c("scale_down","HOLD_position")) 
+# 
+# #-------------------------------------------------------------------------------
+# # regressions with the exact same dataset used for the suits indices
+# #-------------------------------------------------------------------------------
+# 
+# myWorking_per_cap.reg <- myWorking_per_cap %>%
+#   mutate(quantity_per_10000_cum = quantity_per_cap_cum*10000)
+# 
+# one <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct)
+# two <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct)
+# three <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
+# four <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI)
+# five <- feols(data = myWorking_per_cap.reg, quantity_per_10000_cum ~  avg_poc_pct + avg_rural_pct + avg_med_income_house + ZHVI | state_fips)
+# 
+# etable(one,
+#        two,
+#        three,
+#        four,
+#        five,
+#        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+#   kbl(booktabs = T, caption = "Race") %>%
+#   kable_styling(latex_options = c("scale_down","HOLD_position")) 
+# 
+# #include a variable for political affiliation? 
+# # county size ??
+# 
+# #-------------------------------------------------------------------------------
+# # not cumulative per person, we're keeping year in this 
+# #-------------------------------------------------------------------------------
+# 
+# 
+# one.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct)
+# two.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct)
+# three.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house)
+# # four.t <- feols(data = myWorking_not_cumulative, quantity_per_cap ~  poc_pct + rural_pct + med_income_house + ZHVI)
+# five.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house | state_fips)
+# six.t <- feols(data = myWorking_not_cumulative, quantity_per_10000 ~  poc_pct + rural_pct + med_income_house | state_fips + year)
+# 
+# etable(one.t,
+#        two.t,
+#        three.t,
+#        # four.t,
+#        five.t,
+#        six.t,
+#        signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
+#   kbl(booktabs = T, caption = "Race") %>%
+#   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
 
 ```
@@ -608,4 +613,18 @@ etable(one.t,
 * LWCF seems very regression when it comes to % POC. This matches up with what we say in the quartile study.
 * LWCF seems pretty neutral when we look at the differences between rural and urban counties. At the very least, the limited invest in counties with a high % POC is not explained by them being urban and most money going to rural states, otherwise the POC and Rural maps would look more similar. 
 
+# Notes to self 
+* put wealth stuff in appendix because it reduced sample size to post 2000s 
+* do bootstrap-t confidence intervals for suits indices 
+* look at obama admin onward of funds to see if trend has changed in last decade
+* merge in 2020 census data instead ACS
 
+
+```{r}
+#scrap 
+test <- myWorking %>%
+  group_by(fips) %>%
+  mutate(amount_total = sum(amount)) %>%
+  filter(amount_total == 0)
+
+```
