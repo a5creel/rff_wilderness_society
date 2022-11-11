@@ -51,18 +51,19 @@ Thanks to Matt Ashenfarb for providing helpful code on the suites index.
 # made in 01.data_wrangle.R
 myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
 
-#Basic data cleaning
-myWorking <- myWorking %>%
-  filter(type != "P") %>% # not including planning grants bc they're given to states, not counties
-  mutate(type = str_sub(type,0,1)) %>% #getting rid of a space 
+#cleaning to relevant variables 
+myWorking_clean <- myWorking %>%
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
   filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
   dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
-  mutate(amount = if_else(is.na(amount), 0, amount)) %>%  # adding 0s for amount of grant rewarded
-  group_by(fips, year) %>%
+  mutate(amount = if_else(is.na(amount), 0, amount)) %>% # adding 0s for amount of grant rewarded
+  select(state_fips, fips, real_year, merge_year, annual_population, amount, poc_pct, med_income_house, rural_pct)
+
+#creating new variable where amount is defined as total amount a county got in a single year
+myWorking_fips_year <- myWorking_clean %>%
+  group_by(fips, real_year) %>%
   mutate(amount = sum(amount)) %>% #total amount a county got in a single year
-  # mutate(got_grant = sum(got_grant)) %>%  #total quantity of grants a county got in a single year 
-  select(-type) %>% # dropping rows for counties that got multiple grants in the same year
+  ungroup() %>%
   distinct()
 
 # working years: 1965-2018
@@ -115,12 +116,10 @@ The LWCF is a **subsidy** program. To keep signs consistent with "progressive" (
 #per cap: per cap through time aka how it's been implemented through time
 #-------------------------------------------------------------------------------
 
-myWorking_per_cap <- myWorking %>%
-    mutate(amount_per_cap = amount / population) %>% # amount per capita each year
-    # mutate(quantity_per_cap = got_grant/ population) %>% #  quantity per capita each year
+myWorking_per_cap <- myWorking_fips_year %>%
+    mutate(amount_per_cap = amount / annual_population) %>% # amount per capita each year
     group_by(fips) %>% # group by county
     mutate(amount_per_cap_tot = sum(amount_per_cap)) %>% # total amount per cap
-    # mutate(quantity_per_cap_tot = sum(quantity_per_cap)) %>% # total quantity per cap
     mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
     mutate(avg_poc_pct = mean(poc_pct, na.rm = TRUE)) %>%
     mutate(avg_rural_pct = mean(rural_pct, na.rm = TRUE)) %>%
@@ -293,7 +292,7 @@ printSuits(myResult_rural, x_axis = "Rural")
 
 ```
 
-This could be driving by states with more urban areas getting more funds, but then within those states their relatively rural counties get more funding (look at state map)
+This could be driven by states with more urban areas getting more funds, but then within those states their relatively rural counties get less funding (look at state map)
 
 ## State-by-State Picture 
 
@@ -485,7 +484,7 @@ etable(one,
 
 ```
 
-Rural coefficient is not very stable across regressions (indicating an endogenous issue)
+Rural coefficient is not very stable across regressions (indicating an endogenous issue). 
 
 ## Wealth Proxy: ZHVI
 
@@ -516,8 +515,8 @@ ZHVI coefficient is stabel across regressions.
 # Conclusions 
 
 * LWCF seems fairly proportional for income and wealth
-* LWCF seems disfavors counties with more POC. This matches up with what we saw in the quartile study, and what Katharine Sims has found.
-* Less clear story for rural vs urban counties. I think rural status is so linked with population, that it's correlation what how much funding the state gets from the federal program so it's harder to identify the effect her.  
+* LWCF  disfavors counties with more POC. This matches up with what we saw in the quartile study, and what Katharine Sims has found.
+* There is a less clear story for rural vs urban counties. I think rural status is so linked with population, which is correlated with the amount of funding the state gets from the federal program. It's harder to identify the effect here.  
 
 # Remaining to-dos:
 * do bootstrap-t confidence intervals for suits indices 

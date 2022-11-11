@@ -291,15 +291,15 @@ rm(county.map)
 #Don't have annual population before 1970, so merge those years on 1970s demographic info
 myLWCF <- myLWCF %>%
   mutate(real_year = fiscal_year) %>%
-  mutate(fiscal_year = if_else(fiscal_year < 1970, 1970, fiscal_year))
-
+  mutate(fiscal_year = if_else(fiscal_year < 1970, 1970, fiscal_year)) 
 
 myPop_LWCF <- left_join(myAnnualPop, myLWCF, by = c("fips" = "county_fips" , "year" = "fiscal_year")) %>%
   mutate(got_grant = if_else(is.na(amount), 0, 1)) %>%
   dplyr::mutate(merge_year = round_any(year, 10)) %>%
   dplyr::mutate(merge_year = if_else(merge_year < 1970, 1970, merge_year)) %>% # don't have data earlier than 1970 but have a few grants from the 60s
   dplyr::mutate(merge_year = if_else(merge_year == 2020, 2010, merge_year))  # don't have decennial data for 2020, so using 2010 for now (only 870 grants post 2014)
-  
+  #this is the stepping planning grants are dropped in (bc they don't have a fips)
+
 
 # -------------- MERGING LWCF, ANNUAL POP AND IPUMS DATA (DECENNIAL CENSUS) -------------- #
 #Contains annual population levels for every county, decennial demographic characteristics, all LWCF for which I could get a county
@@ -310,7 +310,7 @@ myFinal <- left_join(myPop_LWCF, ipums_clean, by = c("merge_year" = "YEAR", "fip
 # Adjusting for inflation (2018 dollars)
 myInf <- vroom("Datasets/clean_data/inflation_rates.csv") # written at top of this file
 
-myFinal <- left_join(myFinal, myInf, by = "year") %>%
+myFinal <- left_join(myFinal, myInf, by = c("merge_year" = "year")) %>%
   mutate(nominal_amount = amount) %>% # preserving nominal amount
   mutate(nominal_income = med_income_house) %>% 
   mutate(amount = amount/adj_value) %>% #adjusting for inflation
