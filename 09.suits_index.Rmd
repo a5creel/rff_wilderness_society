@@ -214,7 +214,7 @@ myMap_amount <- left_join(state.regions, myResult_state, by = c("fips.character"
 
 #rewrote the state_choropleth function a bit to get rid of state label
 myState_choropleth(myMap_amount, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
-  ggtitle(label = "Suits indexes varries state to state despite being proportional nationally") +
+  ggtitle(label = "Suits indexes for income varries state to state despite being proportional nationally") +
   theme(legend.position="bottom")
 
 
@@ -455,10 +455,10 @@ etable(one,
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
 
-avg_amount_per_cap_tot <- round(mean(myWorking_per_cap$amount_per_cap_tot),2)
+avg_amount_per_cap_tot <- round(mean(myWorking_per_cap$amount_per_cap_tot, na.rm = TRUE),2)
 ```
 
-POC coefficient is fairly stable across regression (consistently negative, economically significant and statistically significant). The average LWCF dollars per capita is `r avg_amount_per_cap_tot`, so this indicates ~1.5% less funding for a 1% increase in POC. 
+POC coefficient is fairly stable across regression (consistently negative, economically significant and statistically significant). The average LWCF dollars per capita is $`r avg_amount_per_cap_tot`, so this indicates ~1.5% less funding for a 1% increase in POC. 
 
 
 ## Rural 
