@@ -1,0 +1,102 @@
+---
+title: "Data Summary Stats"
+author: "Andie Creel"
+date: "2023-01-29"
+output:
+  pdf_document:
+    keep_tex: yes
+    latex_engine: pdflatex
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list = ls())
+library(vroom)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(gtools)
+library(forcats)
+options(scipen=99999)
+library(janitor)
+library(dplyr)
+library(zoo)
+library(runner)
+source('09.functions.R')
+library(fixest)
+library(kableExtra)
+library(stargazer)
+
+# ----maps ---- #
+library(choroplethr)
+library(choroplethrMaps)
+library(usdata)
+library(maps)
+library(tidycensus)
+data("fips_codes")
+data("state.regions")
+library(RColorBrewer)
+```
+
+## Summary Statistics about our dataset 
+
+### How many individual grants did TWS have data on?
+
+```{r, results='asis', message=FALSE}
+# made in 01.data_wrangle.R
+myTWS <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
+
+myTWS <- myTWS %>% 
+  select(fips, year, type, amount) %>%
+  filter(!is.na(type)) %>%
+  filter(amount != 0) %>%
+  distinct()
+
+tws_grant_num <- length(myTWS$type)
+
+
+type_percents <- count(myTWS, type) %>%
+  mutate(perc = round(n/tws_grant_num, 2))
+
+stargazer(type_percents, type = "latex", summary = F)
+```
+
+TWS had data on `r tws_grant_num` grants where they knew the grant type, the amount of funding reward, and the county that the project was located inside of.
+
+Types of LWCF projects 
+
+* A: Land Acquisition
+* D: Development 
+* R: Redevelopment 
+* C: Combination
+* P: Planning
+
+### How many individual grants stay in our dataset (where we know median income, poc % and rural %)
+
+```{r, results='asis', message=FALSE}
+# made in 01.data_wrangle.R
+myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
+
+#cleaning to relevant variables 
+myWorking_clean <- myWorking %>%
+  mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
+  filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
+  dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
+  mutate(amount = if_else(is.na(amount), 0, amount)) %>% # adding 0s for amount of grant rewarded
+  select(state_fips, fips, real_year, merge_year, annual_population, amount, poc_pct, med_income_house, rural_pct) %>%
+  filter(amount != 0) %>% # dropping grants where we don't know the grant amount
+  # not dropping grants where we don't know med income bc that would drop a decades worth of data (dont have med income in 1970 census)
+  filter(!is.na(poc_pct)) %>% #dropping grants where we don't know POC
+  filter(!is.na(rural_pct)) #dropping grants where we don't know rural 
+
+
+# YOU ARE HERE
+
+# FIGURE OUT HOW MANY ROWS WE HAVE FOR MEDIAN INCOME 
+
+```
+
+
+
+

@@ -51,13 +51,22 @@ Thanks to Matt Ashenfarb for providing helpful code on the suites index.
 # made in 01.data_wrangle.R
 myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
 
+
+# DROP GRANTS WHERE WE DONT KNOW med_income_house, poc_pct, or rural_pct
+
 #cleaning to relevant variables 
 myWorking_clean <- myWorking %>%
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
   filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
   dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
   mutate(amount = if_else(is.na(amount), 0, amount)) %>% # adding 0s for amount of grant rewarded
-  select(state_fips, fips, real_year, merge_year, annual_population, amount, poc_pct, med_income_house, rural_pct)
+  select(state_fips, fips, real_year, merge_year, annual_population, amount, poc_pct, med_income_house, rural_pct) %>%
+  filter(amount != 0) %>% # dropping grants where we don't know the grant amount
+  # not dropping grants where we don't know med income bc that would drop a decades worth of data (dont have med income in 1970 census)
+  filter(!is.na(poc_pct)) %>% #dropping grants where we don't know POC
+  filter(!is.na(rural_pct)) #dropping grants where we don't know rural 
+
+
 
 #creating new variable where amount is defined as total amount a county got in a single year
 myWorking_fips_year <- myWorking_clean %>%
@@ -67,7 +76,7 @@ myWorking_fips_year <- myWorking_clean %>%
   distinct()
 
 # working years: 1965-2018
-myWorking %>%
+myWorking_fips_year %>%
   select(real_year) %>%
   distinct() %>%
   summary()
@@ -121,8 +130,8 @@ myWorking_per_cap <- myWorking_fips_year %>%
     group_by(fips) %>% # group by county
     mutate(amount_per_cap_tot = sum(amount_per_cap)) %>% # total amount per cap
     mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
-    mutate(avg_poc_pct = mean(poc_pct, na.rm = TRUE)) %>%
-    mutate(avg_rural_pct = mean(rural_pct, na.rm = TRUE)) %>%
+    mutate(avg_poc_pct = mean(poc_pct)) %>%
+    mutate(avg_rural_pct = mean(rural_pct)) %>%
     select(state_fips, fips, amount_per_cap_tot, avg_med_income_house, avg_poc_pct, avg_rural_pct) %>% # set up reduce down to one entry per county
     distinct() # reduce
 
