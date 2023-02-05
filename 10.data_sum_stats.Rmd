@@ -59,7 +59,7 @@ tws_grant_num <- length(myTWS$type)
 type_percents <- count(myTWS, type) %>%
   mutate(perc = round(n/tws_grant_num, 2))
 
-stargazer(type_percents, type = "latex", summary = F)
+type_percents
 ```
 
 TWS had data on `r tws_grant_num` grants where they knew the grant type, the amount of funding reward, and the county that the project was located inside of.
@@ -84,19 +84,147 @@ myWorking_clean <- myWorking %>%
   filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
   dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
   mutate(amount = if_else(is.na(amount), 0, amount)) %>% # adding 0s for amount of grant rewarded
+  select(state_fips, fips, real_year, merge_year, annual_population, amount, poc_pct, med_income_house, rural_pct, type) %>%
+  filter(amount != 0) %>% # dropping grants where we don't know the grant amount
+  # not dropping grants where we don't know med income bc that would drop a decades worth of data (dont have med income in 1970 census)
+  filter(!is.na(poc_pct)) %>% #dropping grants where we don't know POC
+  filter(!is.na(rural_pct)) #dropping grants where we don't know rural 
+
+my_grant_num <- length(myWorking_clean$state_fips)
+
+
+```
+
+Our data set has `r my_grant_num` grants. 
+
+
+
+### Summary Table
+
+```{r, results='asis'}
+makeSummaryTable <- function(df){
+  
+  # getting started with type break down
+  mySumTable <- count(df, type) %>%
+    mutate(perc = round(n/length(df$type), 2))
+  
+  # getting average grant size by type
+  myAvg_grant_size <-  df %>%
+    group_by(type) %>%
+    mutate(avg_amount = mean(amount)) %>%
+    select(type, avg_amount) %>%
+    distinct()
+    
+  mySumTable <- left_join(mySumTable, myAvg_grant_size, by = "type")
+  
+  #creating row for total
+  mySumTable[5, 1] <- "n"
+  mySumTable[5, 2] <- sum(mySumTable$n, na.rm = T)
+  mySumTable[5, 3] <- sum(mySumTable$perc, na.rm = T)
+  mySumTable[5, 4] <- mean(df$amount)
+  
+  # cleaning up table 
+  mySumTable <- mySumTable %>%
+    mutate(avg_amount = round(avg_amount, 2)) %>%
+    mutate(perc = perc*100)
+  
+  # replacing type 
+  mySumTable$type[1] <- "Acquisition"
+  mySumTable$type[2] <- "Combination"
+  mySumTable$type[3] <- "Development"
+  mySumTable$type[4] <- "Redevelopment"
+  
+  # renaming column names 
+  colnames(mySumTable) <- c("Type", "Count", "Perc.", "Avg. Amount (2018$)")
+  
+  return(mySumTable)
+
+}
+
+mySumTable <- makeSummaryTable(myWorking_clean)
+
+stargazer(mySumTable, type = "latex", summary = F, rownames = F, title = "Summary of grants included in our dataset")
+
+mySumTable
+
+```
+
+### what is the average investment per capita ? 
+
+
+```{r}
+#restarting this every time to keep clear what I'm doing. 
+rm(list = ls())
+
+# -----------------------------------------------------------------------------
+# Dataset on  -- poc and rural
+# -----------------------------------------------------------------------------
+
+# made in 01.data_wrangle.R
+myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
+
+# cleaning to relevant variables 
+myWorking_clean <- myWorking %>%
+  mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
+  filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
+  dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
+  mutate(amount = if_else(is.na(amount), 0, amount)) %>% # adding 0s for amount of grant rewarded
   select(state_fips, fips, real_year, merge_year, annual_population, amount, poc_pct, med_income_house, rural_pct) %>%
   filter(amount != 0) %>% # dropping grants where we don't know the grant amount
   # not dropping grants where we don't know med income bc that would drop a decades worth of data (dont have med income in 1970 census)
   filter(!is.na(poc_pct)) %>% #dropping grants where we don't know POC
   filter(!is.na(rural_pct)) #dropping grants where we don't know rural 
 
+# creating new variable where amount is defined as total amount a county got in a single year
+myWorking_fips_year <- myWorking_clean %>%
+  group_by(fips, real_year) %>%
+  mutate(amount = sum(amount)) %>% #total amount a county got in a single year
+  ungroup() %>%
+  distinct()
 
-# YOU ARE HERE
+# per cap: per cap through time aka how it's been implemented through time
+myWorking_per_cap <- myWorking_fips_year %>%
+    mutate(amount_per_cap = amount / annual_population) %>% # amount per capita each year
+    group_by(fips) %>% # group by county
+    mutate(amount_per_cap_tot = sum(amount_per_cap)) %>% # total amount per cap
+    mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
+    mutate(avg_poc_pct = mean(poc_pct)) %>%
+    mutate(avg_rural_pct = mean(rural_pct)) %>%
+    select(state_fips, fips, amount_per_cap_tot, avg_med_income_house, avg_poc_pct, avg_rural_pct) %>% # set up reduce down to one entry per county
+    distinct() # reduce
 
-# FIGURE OUT HOW MANY ROWS WE HAVE FOR MEDIAN INCOME 
-
+invest_per_cap_dataset <- round(mean(myWorking_per_cap$amount_per_cap_tot),2)
 ```
 
+The average investment per capita is `r invest_per_cap_dataset`. 
+
+
+### chloroplast map of investment per capita in each county 
+
+```{r}
+# investigating format I need region and value in to use choropleth functions
+# data(county.map)
+
+# making dataset
+myCounty_map_df <- myWorking_per_cap %>%
+  mutate(region = as.numeric(fips)) %>%
+  mutate(value = round(amount_per_cap_tot, 2)) %>%
+  select(region, value)
+
+# making plot
+ myCounty_map <- county_choropleth(myCounty_map_df, num_colors = 5, legend = "Investment Per Capita")  + 
+  labs(caption = str_wrap("\nFigure XX: There is a lot of within state variation in investment per capita on the East Coast, South, Midwest and the West Coast. The West has less varition, and counties benefit form a higher investment per capita. Maine and Vermont follow the same pattern as the West.", 120)) +
+  theme(plot.caption.position = "plot",
+        plot.caption = element_text(hjust = 0, size = 25),
+        text=element_text(family="serif"))
+
+ggsave(filename ="Figures/county_invest_per_cap.jpeg", myCounty_map, width = 11, height = 8)
+
+myCounty_map
+
+
+
+```
 
 
 

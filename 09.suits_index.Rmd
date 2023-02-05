@@ -51,9 +51,6 @@ Thanks to Matt Ashenfarb for providing helpful code on the suites index.
 # made in 01.data_wrangle.R
 myWorking <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
 
-
-# DROP GRANTS WHERE WE DONT KNOW med_income_house, poc_pct, or rural_pct
-
 #cleaning to relevant variables 
 myWorking_clean <- myWorking %>%
   mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
@@ -163,9 +160,11 @@ myWorking_per_cap <- left_join(myWorking_per_cap, myZHVI, by = "fips")
 #-------------------------------------------------------------------------------
 
 myResult <- getSuits(myWorking_per_cap, x_axis = "Income")
-printSuits(myResult, x_axis = "Income")
-```
+printSuits(myResult, x_axis = "Income", caption = "Investment per capita is distributed proportionally across counties with varying average median income. ")
 
+ggsave(filename ="Figures/national_median_income.jpeg", width = 11, height = 8)
+
+```
 
 
 ## State by State Picture
@@ -223,9 +222,9 @@ myMap_amount <- left_join(state.regions, myResult_state, by = c("fips.character"
 
 #rewrote the state_choropleth function a bit to get rid of state label
 myState_choropleth(myMap_amount, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
-  ggtitle(label = "Suits indexes for income varries state to state despite being proportional nationally") +
-  theme(legend.position="bottom")
-
+  ggtitle(label = "Suits indexes for income varries state to state despite being proportional nationally") 
+  
+ggsave(filename ="Figures/state_median_income.jpeg", width = 11, height = 8)
 
 
 ```
@@ -239,6 +238,9 @@ myState_choropleth(myMap_amount, num_colors = 0, legend = "Suits Index" ) +  #nu
 
 myResult_poc <- getSuits(myWorking_per_cap, x_axis = "POC")
 printSuits(myResult_poc, x_axis = "POC")
+
+ggsave(filename ="Figures/national_POC.jpeg", width = 11, height = 8)
+
 
 ```
 
@@ -283,9 +285,10 @@ myMap_amount_poc <- left_join(state.regions, myResult_state_poc, by = c("fips.ch
 
 #rewrote the state_choropleth function a bit to get rid of state label
 myState_choropleth(myMap_amount_poc, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
-  ggtitle(label = "All states disfavor counties with more people of color")+
-  theme(legend.position="bottom")
+  ggtitle(label = "All states disfavor counties with more people of color")
+  # theme(legend.position="bottom")
 
+ggsave(filename ="Figures/state_poc.jpeg", width = 11, height = 8)
 
 
 ```
@@ -298,6 +301,8 @@ myState_choropleth(myMap_amount_poc, num_colors = 0, legend = "Suits Index" ) + 
 
 myResult_rural <- getSuits(myWorking_per_cap, x_axis = "Rural")
 printSuits(myResult_rural, x_axis = "Rural")
+ggsave(filename ="Figures/national_rural.jpeg", width = 11, height = 8)
+
 
 ```
 
@@ -345,69 +350,70 @@ myMap_amount_rural <- left_join(state.regions, myResult_state_rural, by = c("fip
 #rewrote the state_choropleth function a bit to get rid of state label
 myState_choropleth(myMap_amount_rural, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
   ggtitle(label = "Rural counties are disfavored",
-          subtitle =  "However, not to the extent counties with many POC are") +
-  theme(legend.position="bottom")
+          subtitle =  "However, not to the extent counties with many POC are") 
+  # theme(legend.position="bottom")
+ggsave(filename ="Figures/state_rural.jpeg", width = 11, height = 8)
 
 
 
 ```
 
-# Wealth Proxy: Zillow Home Value Index 
+<!-- # Wealth Proxy: Zillow Home Value Index  -->
 
-## Nation Picture
+<!-- ## Nation Picture -->
 
 ```{r, echo=FALSE, message=FALSE}
 
 #-------------------------------------------------------------------------------
 # results for nation 
 #-------------------------------------------------------------------------------
-myResult_wealth <- getSuits(myWorking_per_cap, x_axis = "Wealth")
-printSuits(myResult_wealth, x_axis = "Wealth")
+# myResult_wealth <- getSuits(myWorking_per_cap, x_axis = "Wealth")
+# printSuits(myResult_wealth, x_axis = "Wealth")
 ```
 
-Interpretation note: typical home value nor income is explaining the discrimination we see in POC 
+<!-- Interpretation note: typical home value nor income is explaining the discrimination we see in POC  -->
 
-## State by State Picture
+<!-- ## State by State Picture -->
 
 ```{r, echo=FALSE, message=FALSE}
 
-#get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state_wealth <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
-colnames(myResult_state_wealth) <- c("state_fips", "Suits_Amount" )
-for (i in 1:length(state_dfs)) {
-  myResult_state_wealth[i, 1] <- state_dfs[[i]][1,1] #state fips
-   myResult_state_wealth[i, 2] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Amount
-     # myResult_state_wealth[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Quantity
-
-}
-
-# drop clean up state_fips codes
-myResult_state_wealth <- myResult_state_wealth %>%
-  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
-  mutate(state_fips = as.character(state_fips))
+# #get a data frame of suits results using function written earlier and list of state dataframes
+# myResult_state_wealth <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+# colnames(myResult_state_wealth) <- c("state_fips", "Suits_Amount" )
+# for (i in 1:length(state_dfs)) {
+#   myResult_state_wealth[i, 1] <- state_dfs[[i]][1,1] #state fips
+#    myResult_state_wealth[i, 2] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Amount
+#      # myResult_state_wealth[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Quantity
+# 
+# }
+# 
+# # drop clean up state_fips codes
+# myResult_state_wealth <- myResult_state_wealth %>%
+#   mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
+#   mutate(state_fips = as.character(state_fips))
 
 ```
 
 
-### Amount of Funds 
+<!-- ### Amount of Funds  -->
 
 
 ```{r, echo=FALSE}
-#-------------------------------------------------------------------------------
-# Make choropleth map of state results for suits index for amount of funding
-#-------------------------------------------------------------------------------
-
-# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
-myMap_amount_wealth <- left_join(state.regions, myResult_state_wealth, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Amount) %>% #for state_choropleth map call
-  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
-  filter()
-
-#rewrote the state_choropleth function a bit to get rid of state label
-myState_choropleth(myMap_amount_wealth, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
-  ggtitle(label = "Suits indexes varries state to state despite being proportional nationally",
-          subtitle =  "States that favor the rich varry when using income vs. ZHVI") +
-  theme(legend.position="bottom")
+# #-------------------------------------------------------------------------------
+# # Make choropleth map of state results for suits index for amount of funding
+# #-------------------------------------------------------------------------------
+# 
+# # state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
+# myMap_amount_wealth <- left_join(state.regions, myResult_state_wealth, by = c("fips.character" = "state_fips")) %>%
+#   mutate(value = Suits_Amount) %>% #for state_choropleth map call
+#   mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
+#   filter()
+# 
+# #rewrote the state_choropleth function a bit to get rid of state label
+# myState_choropleth(myMap_amount_wealth, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
+#   ggtitle(label = "Suits indexes varries state to state despite being proportional nationally",
+#           subtitle =  "States that favor the rich varry when using income vs. ZHVI") 
+#   # theme(legend.position="bottom")
 
 
 

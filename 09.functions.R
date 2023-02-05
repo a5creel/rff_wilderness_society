@@ -76,24 +76,24 @@ getSuits <- function(df, x_axis = "Income"){
 # print suits index results (graph and indexes)
 #-------------------------------------------------------------------------------
 
-printSuits <- function(myR, x_axis = "Income"){
+printSuits <- function(myR, x_axis = "Income", caption = ""){
   #check 
   if(myR$Variable != x_axis) {stop("The variable of interest used to calulate your result doesn't match the variable of interest given.")}
   
   
   #suits index
-  amount_title = paste0("Amount of Funding. Suits Index: ", round(myR$Suits_Amount, 3))
+  amount_caption = paste0("Figue YY: The suits index ", round(myR$Suits_Amount, 3), ". ", caption)
   # quantity_title = paste0("Quantity of Grant. Suits Index: ", round(myR$Suits_Quantity, 3))
   
   if(x_axis == "Income"){
     x_var <- myR$Graph$Income_cs
-    x_label <- "poorest -> richest counties (avg median income)"
+    x_label <- "Avg. Median Income: poorest -> richest counties "
   }else if (x_axis == "POC"){
     x_var <- myR$Graph$Poc_cs
-    x_label <- "Highest %POC -> whitest counties (avg % POC)"
+    x_label <- "Avg. % POC: highest % POC -> whitest counties"
   } else if (x_axis == "Rural"){
     x_var <- myR$Graph$Rural_cs
-    x_label <- "Most Rural -> Most Urban"
+    x_label <- "Avg. Rurality: most rural -> most urban"
   } else if (x_axis == "Wealth"){  
     x_var <- myR$Graph$Wealth_cs
     x_label <- "Cheapest typical home -> Most Expensive"    
@@ -104,11 +104,15 @@ printSuits <- function(myR, x_axis = "Income"){
   # amount graph
   aGraph <- ggplot(as.data.frame(myR$Graph), aes(x=x_var, y=Amount_cs)) + 
     geom_point(size = .5, colour = 'steelblue') +
-    ggtitle(amount_title, subtitle = "Each point is  a county") +
+    # ggtitle(amount_title, subtitle = "Each point is  a county") +
     xlab(x_label) + 
-    ylab("Accumulated total LWCF dollars per capita") +
+    ylab("Accumulated investment per capita") +
     theme_bw()+ 
-    geom_abline(intercept = 0, slope = 1) # neutral line 
+    geom_abline(intercept = 0, slope = 1) + # neutral line + 
+    labs(caption = str_wrap(amount_caption, 120)) +
+    theme(plot.caption.position = "plot",
+          plot.caption = element_text(hjust = 0, size = 12),
+          text=element_text(family="serif"))
   
   # # quantity graph
   # qGraph <- ggplot(as.data.frame(myR$Graph), aes(x=x_var, y=Quantity_cs)) + 
