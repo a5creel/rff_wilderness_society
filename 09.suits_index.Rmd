@@ -82,32 +82,31 @@ myWorking_fips_year %>%
 
 # Set Up and Definitions 
 
-The **outcomes of interest** is how the total (through time) LWCF dollars per capita distributed in each county. I look at the distribution in total LWCF dollars per capita across different EJ criteria.  
+The **outcomes of interest** is how the average (through time) LWCF dollars per capita distributed in each county. I look at the distribution in average LWCF dollars per capita (investment per capita) across different EJ criteria.  
 
 Originally I used two different per capita measurements for the amount of LWCF funds.
 
 1. Funds given to a county  divided by the population of the county at the time of LWCF distribution. This captures how the program was administered through time.
 2. The cumulative amount of funds given to a county from 1965-2018 divided by the population of the county in 2020 (estimates for population of each county is not available for each county in 2018 in the American Community Survey). This captures how individuals today are effected by the LWCF program.
 
-After both per capita metrics returned similar results (stored in commit from Sept 20th, 2022), I used the first definition which can be interpreted as how the program has been administered historically. 
+After both per capita metrics returned similar results (stored in commit from Sept 20th, 2022), I used the first definition which can be interpreted as how the program has been administered historically. Investment per capita is the average of what is described in one. 
 
 I use per capita metrics for amount of funding to control for a county's population. 
 
 ## Demographics of Interest (x axis)
 We are interested in the distribution of funds across three county-level demographic characteristics: median income, % POC, % rural. 
 
-**Average median household income**: the median household income (averaged from 1965-2018 for each county). 
+**Average median household income**: the median household income (averaged from 1975-2018 for each county bc median income was not collected in the 1970 census). 
 
 **Average percent people of color**: the percent of people in a color who are not non-Hispanic white (averaged from 1965-2018 for each county). 
 
-**Average percent rural**: the percent of people consider living in a rural district??/cbg?? need to check census definition of rural. (averaged from 1965-2018 for each county). 
+**Average percent rural**: the percent of people living in a rural cbg. (averaged from 1965-2018 for each county). 
 
-**Average Wealth Proxy: Zillow Home Value Index**: the average price of a typical home (smoothed, seasonally adjusted measure) for homes in the 35th to 65th percentile range (2018$). 
 
 ## Comparing of Suits Index across states 
-We can compare the level of disparity (i.e., suits index) across states. The level of disparity can be compared across states when thinking about how a state treats it's **percentiles**, however it's important to bare in mind that the county in montana with the most POC will still be far whiter than many "average" counties in the south. 
+We can compare the level of disparity (i.e., suits index) across states. The level of disparity can be compared across states when thinking about how a state treats it's **percentiles**, however it's important to bare in mind that the county in Montana with the most POC will still be far whiter than many "average" counties in the south. 
 
-Additionally, two states with different income distributions could have the same suits index. Two may have different income distributions (ie Michigan is on average richer than New Mexico) but have the same suits index.  
+Additionally, two states with different income distributions could have the same suits index. Two may have different income distributions (i.e., Michigan is on average richer than New Mexico) but have the same suits index.  
 
 ## The sign of the suits index 
 Suits indices are traditionally used to evaluate if a **tax** is progressive or regressive. A positive suits index is a progressive tax. The suits index is **typically** calculated as [(area under the neutral line) - (area under Lorenz curve)] / (area under the neutral line). 
@@ -125,27 +124,108 @@ The LWCF is a **subsidy** program. To keep signs consistent with "progressive" (
 myWorking_per_cap <- myWorking_fips_year %>%
     mutate(amount_per_cap = amount / annual_population) %>% # amount per capita each year
     group_by(fips) %>% # group by county
-    mutate(amount_per_cap_tot = sum(amount_per_cap)) %>% # total amount per cap
+    mutate(amount_per_cap_avg = sum(amount_per_cap)/54) %>% # average amount per cap
     mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
     mutate(avg_poc_pct = mean(poc_pct)) %>%
     mutate(avg_rural_pct = mean(rural_pct)) %>%
-    select(state_fips, fips, amount_per_cap_tot, avg_med_income_house, avg_poc_pct, avg_rural_pct) %>% # set up reduce down to one entry per county
+    select(state_fips, fips, amount_per_cap_avg, avg_med_income_house, avg_poc_pct, avg_rural_pct) %>% # set up reduce down to one entry per county
     distinct() # reduce
 
 #-------------------------------------------------------------------------------
-# Merging in ZHDI, getting average ZHDI through time for each county 
+# results for states
+# DATA PREP
 #-------------------------------------------------------------------------------
-myZHVI_og <- vroom("Datasets/clean_data/annual_ZHVI.csv")
 
-#avg through time
-myZHVI <- myZHVI_og %>%
-  group_by(fips) %>%
-  mutate(ZHVI = mean(annual_ZHVI, na.rm = TRUE)) %>%
-  select(fips, ZHVI) %>%
+fips_codes <- fips_codes %>%
+  select(state_code) %>%
   distinct()
-rm(myZHVI_og)
 
-myWorking_per_cap <- left_join(myWorking_per_cap, myZHVI, by = "fips")
+#Gets list of dataframes for each state (applys function to whole list of state fips)
+state_dfs <- lapply(as.character(fips_codes$state_code), function(st=x){
+                      df <- myWorking_per_cap  %>%
+                        filter(state_fips == st) %>%
+                        mutate(state_fips = as.character(state_fips))
+                      return(df)
+                      }) 
+
+
+#-------------------------------------------------------------------------------
+# Income
+#-------------------------------------------------------------------------------
+
+#get a data frame of suits results using function written earlier and list of state dataframes
+myResult_state_income <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+colnames(myResult_state_income) <- c("state_fips", "Suits_Amount" )
+for (i in 1:length(state_dfs)) {
+  myResult_state_income[i, 1] <- state_dfs[[i]][1,1] #state fips
+   myResult_state_income[i, 2] <- getSuits(state_dfs[[i]])$Suits_Amount
+
+}
+
+# drop clean up state_fips codes
+myResult_state_income <- myResult_state_income %>%
+  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
+  mutate(state_fips = as.character(state_fips))
+
+
+# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
+myMap_amount_income <- left_join(state.regions, myResult_state_income, by = c("fips.character" = "state_fips")) %>%
+  mutate(value = Suits_Amount) %>% #for state_choropleth map call
+  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
+  filter()
+
+#-------------------------------------------------------------------------------
+# POC
+#-------------------------------------------------------------------------------
+
+#get a data frame of suits results using function written earlier and list of state dataframes
+myResult_state_poc <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+colnames(myResult_state_poc) <- c("state_fips", "Suits_Amount")
+for (i in 1:length(state_dfs)) {
+  myResult_state_poc[i, 1] <- state_dfs[[i]][1,1] #state fips
+   myResult_state_poc[i, 2] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Amount
+     # myResult_state_poc[i, 3] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Quantity
+
+}
+
+# drop clean up state_fips codes
+myResult_state_poc <- myResult_state_poc %>%
+  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
+  mutate(state_fips = as.character(state_fips))
+
+# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
+myMap_amount_poc <- left_join(state.regions, myResult_state_poc, by = c("fips.character" = "state_fips")) %>%
+  mutate(value = Suits_Amount) %>% #for state_choropleth map call
+  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
+  filter()
+
+#-------------------------------------------------------------------------------
+# Rural
+#-------------------------------------------------------------------------------
+
+#get a data frame of suits results using function written earlier and list of state dataframes
+myResult_state_rural <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
+colnames(myResult_state_rural) <- c("state_fips", "Suits_Amount")
+for (i in 1:length(state_dfs)) {
+  myResult_state_rural[i, 1] <- state_dfs[[i]][1,1] #state fips
+   myResult_state_rural[i, 2] <- getSuits(state_dfs[[i]], x_axis = "Rural")$Suits_Amount
+     # myResult_state_rural[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Rural")$Suits_Quantity
+
+}
+
+# drop clean up state_fips codes
+myResult_state_rural <- myResult_state_rural %>%
+  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
+  mutate(state_fips = as.character(state_fips))
+
+
+# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
+myMap_amount_rural <- left_join(state.regions, myResult_state_rural, by = c("fips.character" = "state_fips")) %>%
+  mutate(value = Suits_Amount) %>% #for state_choropleth map call
+  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
+  filter()
+
+
 
 ```
 
@@ -170,38 +250,7 @@ ggsave(filename ="Figures/national_median_income.jpeg", width = 11, height = 8)
 ## State by State Picture
 
 ```{r, echo=FALSE, message=FALSE}
-#-------------------------------------------------------------------------------
-# results for states
-# DATA PREP
-#-------------------------------------------------------------------------------
 
-fips_codes <- fips_codes %>%
-  select(state_code) %>%
-  distinct()
-
-#Gets list of dataframes for each state (applys function to whole list of state fips)
-state_dfs <- lapply(as.character(fips_codes$state_code), function(st=x){
-                      df <- myWorking_per_cap  %>%
-                        filter(state_fips == st) %>%
-                        mutate(state_fips = as.character(state_fips))
-                      return(df)
-                      }) 
-
-
-#get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
-colnames(myResult_state) <- c("state_fips", "Suits_Amount" )
-for (i in 1:length(state_dfs)) {
-  myResult_state[i, 1] <- state_dfs[[i]][1,1] #state fips
-   myResult_state[i, 2] <- getSuits(state_dfs[[i]])$Suits_Amount
-     # myResult_state[i, 3] <- getSuits(state_dfs[[i]])$Suits_Quantity
-
-}
-
-# drop clean up state_fips codes
-myResult_state <- myResult_state %>%
-  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
-  mutate(state_fips = as.character(state_fips))
 
 ```
 
@@ -214,14 +263,9 @@ myResult_state <- myResult_state %>%
 # Make choropleth map of state results for suits index for amount of funding
 #-------------------------------------------------------------------------------
 
-# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
-myMap_amount <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Amount) %>% #for state_choropleth map call
-  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
-  filter()
 
 #rewrote the state_choropleth function a bit to get rid of state label
-myState_choropleth(myMap_amount, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
+myState_choropleth(myMap_amount_income, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
   ggtitle(label = "Suits indexes for income varries state to state despite being proportional nationally") 
   
 ggsave(filename ="Figures/state_median_income.jpeg", width = 11, height = 8)
@@ -252,20 +296,7 @@ ggsave(filename ="Figures/national_POC.jpeg", width = 11, height = 8)
 # DATA PREP
 #-------------------------------------------------------------------------------
 
-#get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state_poc <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
-colnames(myResult_state_poc) <- c("state_fips", "Suits_Amount")
-for (i in 1:length(state_dfs)) {
-  myResult_state_poc[i, 1] <- state_dfs[[i]][1,1] #state fips
-   myResult_state_poc[i, 2] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Amount
-     # myResult_state_poc[i, 3] <- getSuits(state_dfs[[i]], x_axis = "POC")$Suits_Quantity
 
-}
-
-# drop clean up state_fips codes
-myResult_state_poc <- myResult_state_poc %>%
-  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
-  mutate(state_fips = as.character(state_fips))
 
 ```
 
@@ -277,11 +308,7 @@ myResult_state_poc <- myResult_state_poc %>%
 # Make choropleth map of state results for suits index for amount of funding
 #-------------------------------------------------------------------------------
 
-# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
-myMap_amount_poc <- left_join(state.regions, myResult_state_poc, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Amount) %>% #for state_choropleth map call
-  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
-  filter()
+
 
 #rewrote the state_choropleth function a bit to get rid of state label
 myState_choropleth(myMap_amount_poc, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
@@ -316,20 +343,6 @@ This could be driven by states with more urban areas getting more funds, but the
 # DATA PREP
 #-------------------------------------------------------------------------------
 
-#get a data frame of suits results using function written earlier and list of state dataframes
-myResult_state_rural <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
-colnames(myResult_state_rural) <- c("state_fips", "Suits_Amount")
-for (i in 1:length(state_dfs)) {
-  myResult_state_rural[i, 1] <- state_dfs[[i]][1,1] #state fips
-   myResult_state_rural[i, 2] <- getSuits(state_dfs[[i]], x_axis = "Rural")$Suits_Amount
-     # myResult_state_rural[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Rural")$Suits_Quantity
-
-}
-
-# drop clean up state_fips codes
-myResult_state_rural <- myResult_state_rural %>%
-  mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
-  mutate(state_fips = as.character(state_fips))
 
 ```
 
@@ -341,79 +354,12 @@ myResult_state_rural <- myResult_state_rural %>%
 # Make choropleth map of state results for suits index for amount of funding
 #-------------------------------------------------------------------------------
 
-# state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
-myMap_amount_rural <- left_join(state.regions, myResult_state_rural, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Amount) %>% #for state_choropleth map call
-  mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
-  filter()
-
 #rewrote the state_choropleth function a bit to get rid of state label
 myState_choropleth(myMap_amount_rural, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
   ggtitle(label = "Rural counties are disfavored",
           subtitle =  "However, not to the extent counties with many POC are") 
   # theme(legend.position="bottom")
 ggsave(filename ="Figures/state_rural.jpeg", width = 11, height = 8)
-
-
-
-```
-
-<!-- # Wealth Proxy: Zillow Home Value Index  -->
-
-<!-- ## Nation Picture -->
-
-```{r, echo=FALSE, message=FALSE}
-
-#-------------------------------------------------------------------------------
-# results for nation 
-#-------------------------------------------------------------------------------
-# myResult_wealth <- getSuits(myWorking_per_cap, x_axis = "Wealth")
-# printSuits(myResult_wealth, x_axis = "Wealth")
-```
-
-<!-- Interpretation note: typical home value nor income is explaining the discrimination we see in POC  -->
-
-<!-- ## State by State Picture -->
-
-```{r, echo=FALSE, message=FALSE}
-
-# #get a data frame of suits results using function written earlier and list of state dataframes
-# myResult_state_wealth <- data.frame(matrix(ncol=2, nrow = length(state_dfs)))
-# colnames(myResult_state_wealth) <- c("state_fips", "Suits_Amount" )
-# for (i in 1:length(state_dfs)) {
-#   myResult_state_wealth[i, 1] <- state_dfs[[i]][1,1] #state fips
-#    myResult_state_wealth[i, 2] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Amount
-#      # myResult_state_wealth[i, 3] <- getSuits(state_dfs[[i]], x_axis = "Wealth")$Suits_Quantity
-# 
-# }
-# 
-# # drop clean up state_fips codes
-# myResult_state_wealth <- myResult_state_wealth %>%
-#   mutate(state_fips = str_pad(state_fips, width = 2, pad ="0")) %>%
-#   mutate(state_fips = as.character(state_fips))
-
-```
-
-
-<!-- ### Amount of Funds  -->
-
-
-```{r, echo=FALSE}
-# #-------------------------------------------------------------------------------
-# # Make choropleth map of state results for suits index for amount of funding
-# #-------------------------------------------------------------------------------
-# 
-# # state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
-# myMap_amount_wealth <- left_join(state.regions, myResult_state_wealth, by = c("fips.character" = "state_fips")) %>%
-#   mutate(value = Suits_Amount) %>% #for state_choropleth map call
-#   mutate(value = if_else(is.na(value), 0, value)) %>% #so that we don't have NAs in map
-#   filter()
-# 
-# #rewrote the state_choropleth function a bit to get rid of state label
-# myState_choropleth(myMap_amount_wealth, num_colors = 0, legend = "Suits Index" ) +  #num_colors = 0 makes it so white is zero
-#   ggtitle(label = "Suits indexes varries state to state despite being proportional nationally",
-#           subtitle =  "States that favor the rich varry when using income vs. ZHVI") 
-#   # theme(legend.position="bottom")
 
 
 
@@ -430,10 +376,10 @@ ggsave(filename ="Figures/state_rural.jpeg", width = 11, height = 8)
 #-------------------------------------------------------------------------------
 
 
-one <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_med_income_house)
-two <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_med_income_house + avg_poc_pct)
-three <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_med_income_house + avg_poc_pct + avg_rural_pct)
-four <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_poc_pct + avg_rural_pct + avg_med_income_house | state_fips)
+one <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_med_income_house)
+two <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_med_income_house + avg_poc_pct)
+three <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_med_income_house + avg_poc_pct + avg_rural_pct)
+four <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_poc_pct + avg_rural_pct + avg_med_income_house | state_fips)
 
 etable(one,
        two,
@@ -456,10 +402,10 @@ Income coefficient is stable across regression
 #-------------------------------------------------------------------------------
 
 
-one <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_poc_pct)
-two <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_poc_pct + avg_med_income_house)
-three <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
-four <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_poc_pct + avg_rural_pct + avg_med_income_house | state_fips)
+one <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_poc_pct)
+two <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_poc_pct + avg_med_income_house)
+three <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
+four <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_poc_pct + avg_rural_pct + avg_med_income_house | state_fips)
 
 etable(one,
        two,
@@ -470,10 +416,10 @@ etable(one,
   kable_styling(latex_options = c("scale_down","HOLD_position")) 
 
 
-avg_amount_per_cap_tot <- round(mean(myWorking_per_cap$amount_per_cap_tot, na.rm = TRUE),2)
+avg_amount_per_cap_avg <- round(mean(myWorking_per_cap$amount_per_cap_avg, na.rm = TRUE),2)
 ```
 
-POC coefficient is fairly stable across regression (consistently negative, economically significant and statistically significant). The average LWCF dollars per capita is $`r avg_amount_per_cap_tot`, so this indicates ~1.5% less funding for a 1% increase in POC. 
+POC coefficient is fairly stable across regression (consistently negative, economically significant and statistically significant). The average LWCF dollars per capita is $`r avg_amount_per_cap_avg`, so this indicates ~1.5% less funding for a 1% increase in POC. 
 
 
 ## Rural 
@@ -484,10 +430,10 @@ POC coefficient is fairly stable across regression (consistently negative, econo
 #-------------------------------------------------------------------------------
 
 
-one <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_rural_pct)
-two <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_rural_pct + avg_med_income_house)
-three <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
-four <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  avg_poc_pct + avg_rural_pct + avg_med_income_house | state_fips)
+one <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_rural_pct)
+two <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_rural_pct + avg_med_income_house)
+three <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_poc_pct + avg_rural_pct + avg_med_income_house)
+four <- feols(data = myWorking_per_cap, amount_per_cap_avg ~  avg_poc_pct + avg_rural_pct + avg_med_income_house | state_fips)
 
 etable(one,
        two,
@@ -500,32 +446,6 @@ etable(one,
 ```
 
 Rural coefficient is not very stable across regressions (indicating an endogenous issue). 
-
-## Wealth Proxy: ZHVI
-
-```{r, echo = FALSE}
-
-#-------------------------------------------------------------------------------
-# regressions with the exact same dataset used for the suits indices
-#-------------------------------------------------------------------------------
-
-
-one <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  ZHVI)
-two <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  ZHVI + avg_poc_pct)
-three <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  ZHVI + avg_rural_pct + avg_poc_pct)
-four <- feols(data = myWorking_per_cap, amount_per_cap_tot ~  ZHVI + avg_rural_pct + avg_poc_pct | state_fips)
-
-etable(one,
-       two,
-       three,
-       four,
-       signifCode = c("***"=0.01, "**"=0.05, "*"=0.10)) %>%
-  kbl(booktabs = T, caption = "Race") %>%
-  kable_styling(latex_options = c("scale_down","HOLD_position")) 
-
-```
-
-ZHVI coefficient is stabel across regressions.
 
 # Conclusions 
 
