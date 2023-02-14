@@ -62,7 +62,7 @@ getSuits <- function(df, x_axis = "Income"){
 # print suits index results (graph and indexes)
 #-------------------------------------------------------------------------------
 
-printSuits <- function(myR, x_axis = "Income", caption = ""){
+getGraph <- function(myR, x_axis = "Income", caption = ""){
   #check 
   if(myR$Variable != x_axis) {stop("The variable of interest used to calulate your result doesn't match the variable of interest given.")}
   
@@ -90,12 +90,12 @@ printSuits <- function(myR, x_axis = "Income", caption = ""){
     ylab("Accumulated investment per capita") +
     theme_bw()+ 
     geom_abline(intercept = 0, slope = 1) + # neutral line + 
-    labs(caption = str_wrap(amount_caption, 120)) +
+    # labs(caption = str_wrap(amount_caption, 120)) +
     theme(plot.caption.position = "plot",
           plot.caption = element_text(hjust = 0, size = 12),
           text=element_text(family="serif"))
   
-  return(list(Amout_Graph = aGraph))
+  return(aGraph)
 
 }
 
