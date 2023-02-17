@@ -125,24 +125,24 @@ myResult_state <- myResult_state %>%
 #-------------------------------------------------------------------------------
 # state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
 myMap_income <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Amount_Income) %>% #for state_choropleth map call
-  mutate(value = if_else(is.na(value), 0, value))  #so that we don't have NAs in map
+  mutate(value = Suits_Amount_Income)  #for state_choropleth map call
+  # mutate(value = if_else(is.na(value), 0, value))  #so that we don't have NAs in map
 
 #-------------------------------------------------------------------------------
 # POC -- state 
 #-------------------------------------------------------------------------------
 # state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
 myMap_poc <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Amount_POC) %>% #for state_choropleth map call
-  mutate(value = if_else(is.na(value), 0, value)) #so that we don't have NAs in map
+  mutate(value = Suits_Amount_POC)  #for state_choropleth map call
+  # mutate(value = if_else(is.na(value), 0, value)) #so that we don't have NAs in map
 
 #-------------------------------------------------------------------------------
 # Rural -- state
 #-------------------------------------------------------------------------------
 # state_choropleth doesn't work for all fips codes, so we need to only use those in data(state.regions)
 myMap_rural <- left_join(state.regions, myResult_state, by = c("fips.character" = "state_fips")) %>%
-  mutate(value = Suits_Amount_Rural) %>% #for state_choropleth map call
-  mutate(value = if_else(is.na(value), 0, value)) #so that we don't have NAs in map
+  mutate(value = Suits_Amount_Rural) #for state_choropleth map call
+  # mutate(value = if_else(is.na(value), 0, value)) #so that we don't have NAs in map
 
 ```
 
@@ -215,11 +215,16 @@ ggsave(filename ="Figures/national_rural.jpeg", plot = national_rural, width = 1
 #-------------------------------------------------------------------------------
 # make figure with three graphs -- national 
 #-------------------------------------------------------------------------------
-ggarrange(national_income, national_poc, national_rural,
-                    # labels = c("A", "B", "C"),
-                    ncol = 3, nrow = 1) + 
-      labs(caption = "TEST") 
+tripple_national <- ggarrange(national_income, national_poc, national_rural,
+                    labels = c("Median Income", "People of Color", "Rurality"),
+                    label.x = c(0,0,.09),
+                    # hjust = -.75,
+                    vjust = 3,
+                    ncol = 3, nrow = 1) 
 
+ggsave(filename ="Figures/national_all.jpeg", plot = tripple_national, width = 12, height = 4)
+
+tripple_national
 
 
 ```
@@ -233,16 +238,16 @@ ggarrange(national_income, national_poc, national_rural,
 #-------------------------------------------------------------------------------
 # State Results for income
 #-------------------------------------------------------------------------------
-state_income <- myState_choropleth(myMap_income, num_colors = 0, legend = "Suits Index" ) +  
-  ggtitle(label = "Suits indexes for income varries state to state despite being proportional nationally") 
+state_income <- myState_choropleth(myMap_income, num_colors = 0, legend = "Suits Index" ) 
+  # ggtitle(label = "Suits indexes for income varries state to state despite being proportional nationally") 
   
 ggsave(filename ="Figures/state_median_income.jpeg", plot = state_income, width = 11, height = 8)
 
 #-------------------------------------------------------------------------------
 # State Results for POC
 #-------------------------------------------------------------------------------
-state_poc <- myState_choropleth(myMap_poc, num_colors = 0, legend = "Suits Index" ) +
-  ggtitle(label = "All states disfavor counties with more people of color")
+state_poc <- myState_choropleth(myMap_poc, num_colors = 0, legend = "Suits Index" ) 
+  # ggtitle(label = "All states disfavor counties with more people of color")
   # theme(legend.position="bottom")
 
 ggsave(filename ="Figures/state_poc.jpeg", plot = state_poc, width = 11, height = 8)
@@ -250,12 +255,28 @@ ggsave(filename ="Figures/state_poc.jpeg", plot = state_poc, width = 11, height 
 #-------------------------------------------------------------------------------
 # State Results for Rural
 #-------------------------------------------------------------------------------
-state_rural <- myState_choropleth(myMap_rural, num_colors = 0, legend = "Suits Index" ) +
-  ggtitle(label = "Rural counties are disfavored",
-          subtitle =  "However, not to the extent counties with many POC are") 
+state_rural <- myState_choropleth(myMap_rural, num_colors = 0, legend = "Suits Index" ) 
+  # ggtitle(label = "Rural counties are disfavored",
+          # subtitle =  "However, not to the extent counties with many POC are") 
   # theme(legend.position="bottom")
 
 ggsave(filename ="Figures/state_rural.jpeg", plot = state_rural, width = 11, height = 8)
+
+#-------------------------------------------------------------------------------
+# make figure with three graphs -- state 
+#-------------------------------------------------------------------------------
+tripple_state <- ggarrange(state_income, state_poc, state_rural,
+                    labels = c("Median Income", "People of Color", "Rurality"),
+                    # label.x = c(0,0,.09),
+                    hjust = c(-.1,-.1, -.2),
+                    vjust = 8,
+                    ncol = 3, nrow = 1, 
+                    common.legend = TRUE, 
+                    legend = "right") 
+
+ggsave(filename ="Figures/state_all.jpeg", plot = tripple_state, width = 12, height = 4)
+
+tripple_state
 
 ```
 

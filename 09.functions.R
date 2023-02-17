@@ -72,13 +72,16 @@ getGraph <- function(myR, x_axis = "Income", caption = ""){
 
   if(x_axis == "Income"){
     x_var <- myR$Graph$Income_cs
-    x_label <- "Avg. Median Income: poorest -> richest counties "
+    x_label <- "poorest to richest counties "
+    y_label <- "Accumulated investment per capita"
   }else if (x_axis == "POC"){
     x_var <- myR$Graph$Poc_cs
-    x_label <- "Avg. % POC: highest % POC -> whitest counties"
+    x_label <- "highest % POC to whitest counties"
+    y_label <- ""
   } else if (x_axis == "Rural"){
     x_var <- myR$Graph$Rural_cs
-    x_label <- "Avg. Rurality: most rural -> most urban"
+    x_label <- "most rural to most urban counties"
+    y_label <- ""
   } else{
     stop("You have not specified a viable variable of interest. Options are: Income, POC.")
   }
@@ -87,13 +90,12 @@ getGraph <- function(myR, x_axis = "Income", caption = ""){
   aGraph <- ggplot(as.data.frame(myR$Graph), aes(x=x_var, y=Amount_cs)) + 
     geom_point(size = .5, colour = 'steelblue') +
     xlab(x_label) + 
-    ylab("Accumulated investment per capita") +
+    ylab(y_label) +
     theme_bw()+ 
     geom_abline(intercept = 0, slope = 1) + # neutral line + 
     # labs(caption = str_wrap(amount_caption, 120)) +
     theme(plot.caption.position = "plot",
-          plot.caption = element_text(hjust = 0, size = 12),
-          text=element_text(family="serif"))
+          plot.caption = element_text(hjust = 0, size = 12))
   
   return(aGraph)
 
@@ -104,9 +106,14 @@ myState_choropleth <- function (df, title = "", legend = "", num_colors = 7, zoo
     c = StateChoropleth$new(df)
     c$title = title
     c$legend = legend
-    c$set_num_colors(num_colors)
     c$set_zoom(zoom)
     c$show_labels = FALSE #gets ride of abbreviations on states
+    c$ggplot_scale = scale_fill_steps2(low = "darkred", mid = "white", high = "darkblue",
+                                       midpoint = 0,
+                                       n.breaks = 9,
+                                       na.value="black",
+                                       limits=c(-1, 1))
+    c$set_num_colors(num_colors)
     if (reference_map) {
       if (is.null(zoom)) {
         stop("Reference maps do not currently work with maps that have insets, such as maps of the 50 US States.")
