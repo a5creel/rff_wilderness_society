@@ -190,7 +190,7 @@ The LWCF is a **subsidy** program. To keep signs consistent with "progressive" (
 #-------------------------------------------------------------------------------
 
 myResult_income <- getSuits(myWorking, x_axis = "Income")
-national_income <- getGraph(myResult_income, x_axis = "Income", caption = "Investment per capita is distributed proportionally across counties with varying average median income. ")
+national_income <- getGraph(myResult_income, x_axis = "Income", caption = "Investment per capita is distributed proportionally across counties with varying average median income. ") 
 
 ggsave(filename ="Figures/national_median_income.jpeg", plot = national_income,  width = 11, height = 8)
 
