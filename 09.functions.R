@@ -135,35 +135,33 @@ getGraph_reDay <- function(myR, x_axis = "Income", caption = ""){
   #check 
   if(myR$Variable != x_axis) {stop("The variable of interest used to calulate your result doesn't match the variable of interest given.")}
   
-  
-  #suits index
-  amount_caption = paste0("Figue YY: The suits index ", round(myR$Suits_Amount, 3), ". ", caption)
+  y_label <- "Cumulative investment per capita"
   
   if(x_axis == "Income"){
     x_var <- myR$Graph$Income_cs
-    x_label <- "poorest to richest counties "
-    y_label <- "Cumulative investment per capita"
+    x_label <- "poorest -> richest counties "
+    dot_color <- "#c1a1b3" #light purple to match choropleth 
   }else if (x_axis == "POC"){
     x_var <- myR$Graph$Poc_cs
-    x_label <- "highest % POC to whitest counties"
-    y_label <- ""
+    x_label <- "highest % POC -> whitest counties"
+    dot_color <- "darkred"
   } else if (x_axis == "Rural"){
     x_var <- myR$Graph$Rural_cs
-    x_label <- "most rural to most urban counties"
-    y_label <- ""
+    x_label <- "most rural -> most urban counties"
+    dot_color <- "#bf6b5b" # light red to to match choropleth 
+    
   } else{
     stop("You have not specified a viable variable of interest. Options are: Income, POC.")
   }
   
   # amount graph
   aGraph <- ggplot(as.data.frame(myR$Graph), aes(x=x_var, y=Amount_cs)) + 
-    geom_point(size = .5, colour = 'steelblue') +
+    geom_point(size = 1.5, colour = dot_color) +
     labs(x = x_label, y = y_label, size = 60)+
     theme_bw() + 
-    geom_abline(intercept = 0, slope = 1) +  # neutral line + 
+    geom_abline(intercept = 0, slope = 1, size = 1.5) +  # neutral line + 
     theme(axis.title = element_text(size=25)) +
-    ggtitle(paste0("Suits Index: ", round(myR$Suits_Amount, 3))) + theme(plot.title = element_text(hjust = 1))
+    ggtitle(paste0("Suits Index: ", round(myR$Suits_Amount, 3))) + 
+    theme(plot.title = element_text(hjust = 0.1, vjust = -12, size = 25))
 
-  # return(aGraph)
-  
 }

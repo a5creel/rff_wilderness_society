@@ -184,7 +184,7 @@ myCounty_map_df <- myWorking %>%
   select(region, value) 
 
 # making plot
- myCounty_map <- county_choropleth(myCounty_map_df, num_colors = 5, legend = "Investment Per Capita")  + 
+ myCounty_map <- county_choropleth(myCounty_map_df, num_colors = 9, legend = "Investment Per Capita")  + 
   theme(plot.caption.position = "plot",
         plot.caption = element_text(hjust = 0, size = 25))
 
