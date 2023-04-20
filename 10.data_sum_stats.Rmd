@@ -64,23 +64,11 @@ Types of LWCF projects
 ### How many individual grants stay in our dataset (where we know median income, poc % and rural %)
 
 ```{r, results='asis', message=FALSE}
-# made in 01.data_wrangle.R
-myWorking_og <- vroom("Datasets/clean_data/lwcf_annualPop_deccenialDemographics.csv") 
+load("09.suits_environment.RData")
+rm(myMap_income, myMap_poc, myMap_rural, myResult_state, state_dfs)
 
-#cleaning to relevant variables 
-myWorking_clean <- myWorking_og %>%
-  mutate(state_fips = as.factor(str_sub(fips, 1, 2))) %>% # getting state fips code
-  filter(!is.na(white_pct)) %>% # getting rid of rows where I couldn't get their demographic data
-  dplyr::mutate(poc_pct = 100 - white_pct) %>% # calculating % people of color as non-hispanic white
-  mutate(amount = if_else(is.na(amount), 0, amount)) %>% # adding 0s for amount of grant rewarded
-  select(state_fips, fips, real_year, merge_year, annual_population, amount, poc_pct, med_income_house, rural_pct, type) %>%
-  filter(amount != 0) %>% # dropping grants where we don't know the grant amount
-  # not dropping grants where we don't know med income bc that would drop a decades worth of data (dont have med income in 1970 census)
-  filter(!is.na(poc_pct)) %>% #dropping grants where we don't know POC
-  filter(!is.na(rural_pct)) #dropping grants where we don't know rural 
-
+# _clean is the orginal dataset cleaned to relevant variables
 my_grant_num <- length(myWorking_clean$state_fips)
-
 
 ```
 
@@ -130,6 +118,7 @@ makeSummaryTable <- function(df){
 
 }
 
+# _clean is the orginal dataset cleaned to relevant variables
 mySumTable <- makeSummaryTable(myWorking_clean)
 
 stargazer(mySumTable, type = "latex", summary = F, rownames = F, title = "Summary of grants included in our dataset")
@@ -142,28 +131,7 @@ mySumTable
 
 
 ```{r}
-#creating new variable where amount is defined as total amount a county got in a single year
-myWorking_fips_year <- myWorking_clean %>%
-  group_by(fips, real_year) %>%
-  mutate(amount = sum(amount)) %>% #total amount a county got in a single year
-  ungroup() %>%
-  distinct()
-
-#-------------------------------------------------------------------------------
-#per cap: per cap through time aka how it's been implemented through time
-#-------------------------------------------------------------------------------
-
-myWorking <- myWorking_fips_year %>%
-    mutate(amount_per_cap = amount / annual_population) %>% # amount per capita each year
-    group_by(fips) %>% # group by county
-    mutate(amount_per_cap_avg = sum(amount_per_cap)/54) %>% # average amount per cap
-    mutate(avg_med_income_house = mean(med_income_house, na.rm = TRUE)) %>% #average median income
-    mutate(avg_poc_pct = mean(poc_pct)) %>%
-    mutate(avg_rural_pct = mean(rural_pct)) %>%
-    select(state_fips, fips, amount_per_cap_avg, avg_med_income_house, avg_poc_pct, avg_rural_pct) %>% # set up reduce down to one entry per county
-    distinct() # reduce
-
-
+# myWorking have average investment per capita (not long by time)
 invest_per_cap_dataset <- round(mean(myWorking$amount_per_cap_avg),2)
 num_counties <- length(myWorking$fips)
 ```
@@ -191,10 +159,6 @@ myCounty_map_df <- myWorking %>%
 ggsave(filename ="Figures/county_invest_per_cap.jpeg", myCounty_map, width = 11, height = 8)
 
 myCounty_map
-
-
-
-
 ```
 Figure XX: There is a lot of within state variation in investment per capita on the East Coast, South, Midwest and the West Coast. The West has less varition, and counties benefit form a higher investment per capita. Maine and Vermont follow the same pattern as the West.
 
