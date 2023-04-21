@@ -59,7 +59,30 @@ for (i in 1:length(decade_dfs)) {
   myResult_decade$Suits_Amount_Rural[i] <- getSuits(decade_dfs[[i]], x_axis = "Rural")$Suits_Amount
 }
 
+# pivot longer
+myDecade <- myResult_decade %>%
+  rename(POC = Suits_Amount_POC) %>%
+  rename(Poverty = Suits_Amount_Income) %>%
+  rename(Rural = Suits_Amount_Rural) %>%
+  pivot_longer(cols = c(POC, Poverty, Rural), names_to = "Demographic") 
+
+# ggplot 
+
+ggplot(myDecade, aes(x = Decade, y = value)) + 
+  geom_line(aes(color = Demographic), size = 1.5) + 
+  geom_point(aes(color = Demographic), size = 2.5) + 
+  scale_color_manual(values = c("darkred", "steelblue", "darkgreen")) +
+  geom_abline(intercept = 0, slope = 0, size = 1, col = "grey", linetype = "longdash") +  
+  theme_bw() + 
+  labs(y = "Suits Index")+
+  theme(axis.title = element_text(size=25),
+        axis.text = element_text(size=15),
+        legend.title =  element_text(size=25), 
+        legend.text =  element_text(size=15))
+
+ggsave("Figures/trends.jpeg", width = 11, height = 8) 
 
 
-# SOMETHING WEIRD GOING ON WITH GETTING DECADE 
+
+
 
