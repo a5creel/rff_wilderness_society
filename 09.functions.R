@@ -140,7 +140,8 @@ getGraph_reDay <- function(myR, x_axis = "Income", caption = ""){
   if(x_axis == "Income"){
     x_var <- myR$Graph$Income_cs
     x_label <- "poorest -> richest counties "
-    dot_color <- "#c1a1b3" #light purple to match choropleth 
+    # dot_color <- "#c1a1b3" #light purple to match choropleth 
+    dot_color <- "steelblue" #matching trends graph
   }else if (x_axis == "POC"){
     x_var <- myR$Graph$Poc_cs
     x_label <- "highest % POC -> whitest counties"
@@ -148,8 +149,8 @@ getGraph_reDay <- function(myR, x_axis = "Income", caption = ""){
   } else if (x_axis == "Rural"){
     x_var <- myR$Graph$Rural_cs
     x_label <- "most rural -> most urban counties"
-    dot_color <- "#bf6b5b" # light red to to match choropleth 
-    
+    # dot_color <- "#bf6b5b" # light red to to match choropleth 
+    dot_color <- "darkgreen" #matching trends graph
   } else{
     stop("You have not specified a viable variable of interest. Options are: Income, POC.")
   }

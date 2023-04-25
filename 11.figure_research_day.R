@@ -33,6 +33,7 @@ library(RColorBrewer)
 # Loading environment 
 #-------------------------------------------------------------------------------
 load("09.suits_environment.RData")
+source('09.functions.R')
 
 #-------------------------------------------------------------------------------
 # CREATING GRAPHS: National 
