@@ -164,7 +164,7 @@ ggsave(filename ="Figures/state_rural.jpeg", plot = state_rural, width = 11, hei
 # make figure with three graphs -- state 
 #-------------------------------------------------------------------------------
 tripple_state <- ggarrange(state_income, state_poc, state_rural,
-                    labels = c("Median Income", "People of Color", "Rurality"),
+                    labels = c("Poverty", "People of Color", "Rurality"),
                     # label.x = c(0,0,.09),
                     hjust = c(-.1,-.1, -.2),
                     vjust = 8,
